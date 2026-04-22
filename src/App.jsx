@@ -107,7 +107,6 @@ async function checkSimilar(text, questions) {
     }),
   });
   const data = await res.json();
-  console.log("API response:", JSON.stringify(data));
   const raw = data.content?.find((b) => b.type === "text")?.text || "{}";
   return JSON.parse(raw.replace(/```json|```/g, "").trim());
 }
