@@ -95,13 +95,19 @@ async function checkSimilar(text, questions) {
   const system = SYSTEM_PROMPT.replace("QUESTIONS_PLACEHOLDER", JSON.stringify(questions.map((q) => ({ id: q.id, text: q.text }))));
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": import.meta.env.VITE_ANTHROPIC_KEY,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514", max_tokens: 800, system,
+      model: "claude-sonnet-4-5", max_tokens: 800, system,
       messages: [{ role: "user", content: `New question: "${text}"` }],
     }),
   });
   const data = await res.json();
+  console.log("API response:", JSON.stringify(data));
   const raw = data.content?.find((b) => b.type === "text")?.text || "{}";
   return JSON.parse(raw.replace(/```json|```/g, "").trim());
 }
