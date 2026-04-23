@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ── Seed data ──────────────────────────────────────────────────────────────
+// submittedDate drives the live days counter — calculated from today automatically
 const SEED_QUESTIONS = [
   {
     id: 1,
     text: "Will you commit to scrapping the two-child benefit cap in this parliament — yes or no?",
-    votes: 84203, daysUnanswered: 214, timesDeflected: 6, tag: "welfare", status: "unanswered",
+    votes: 84203, timesDeflected: 6, tag: "welfare", status: "unanswered",
+    submittedDate: "2024-09-12",
     history: [
       { date: "12 Sep 2024", type: "submitted", note: "Question first submitted by community" },
       { date: "9 Oct 2024",  type: "deflected", note: "Raised at PMQs. Deflected to 'fiscal responsibility'" },
@@ -16,7 +18,8 @@ const SEED_QUESTIONS = [
   {
     id: 2,
     text: "Why did you accept £16,000 in clothing gifts while cutting winter fuel payments for pensioners?",
-    votes: 71440, daysUnanswered: 189, timesDeflected: 4, tag: "accountability", status: "unanswered",
+    votes: 71440, timesDeflected: 4, tag: "accountability", status: "unanswered",
+    submittedDate: "2024-10-03",
     history: [
       { date: "3 Oct 2024",  type: "submitted", note: "Question submitted following media reports" },
       { date: "23 Oct 2024", type: "deflected", note: "PMQs. Deflected to 'properly declared gifts'" },
@@ -26,7 +29,8 @@ const SEED_QUESTIONS = [
   {
     id: 3,
     text: "Will the government restore the £300 winter fuel payment for all pensioners?",
-    votes: 62100, daysUnanswered: 201, timesDeflected: 8, tag: "pensioners", status: "unanswered",
+    votes: 62100, timesDeflected: 8, tag: "pensioners", status: "unanswered",
+    submittedDate: "2024-09-22",
     history: [
       { date: "22 Sep 2024",  type: "submitted", note: "Submitted following government announcement" },
       { date: "Oct–Dec 2024", type: "deflected", note: "Raised 5 times. Consistently deflected" },
@@ -36,7 +40,8 @@ const SEED_QUESTIONS = [
   {
     id: 4,
     text: "What is your concrete plan to bring NHS waiting lists below 18 weeks, and by when exactly?",
-    votes: 48230, daysUnanswered: 156, timesDeflected: 3, tag: "NHS", status: "unanswered",
+    votes: 48230, timesDeflected: 3, tag: "NHS", status: "unanswered",
+    submittedDate: "2024-11-01",
     history: [
       { date: "1 Nov 2024", type: "submitted", note: "Community question submitted" },
       { date: "Jan 2025",   type: "deflected", note: "Raised twice. Deflected to 'record investment'" },
@@ -45,7 +50,8 @@ const SEED_QUESTIONS = [
   {
     id: 5,
     text: "How much has the Rwanda deportation scheme cost in total, including legal fees?",
-    votes: 39800, daysUnanswered: 134, timesDeflected: 5, tag: "immigration", status: "unanswered",
+    votes: 39800, timesDeflected: 5, tag: "immigration", status: "unanswered",
+    submittedDate: "2024-10-05",
     history: [
       { date: "5 Oct 2024", type: "submitted", note: "Question submitted" },
       { date: "Nov 2024",   type: "deflected", note: "Deflected to 'previous government decision'" },
@@ -54,7 +60,8 @@ const SEED_QUESTIONS = [
   {
     id: 6,
     text: "Will you hold a public inquiry into the grooming gangs scandal with full national scope?",
-    votes: 31200, daysUnanswered: 98, timesDeflected: 4, tag: "justice", status: "unanswered",
+    votes: 31200, timesDeflected: 4, tag: "justice", status: "unanswered",
+    submittedDate: "2025-01-15",
     history: [
       { date: "15 Jan 2025", type: "submitted", note: "Question submitted" },
       { date: "Feb 2025",    type: "deflected", note: "Deflected twice. Local inquiries cited instead" },
@@ -63,7 +70,8 @@ const SEED_QUESTIONS = [
   {
     id: 7,
     text: "When will infected blood inquiry victims receive full compensation payments?",
-    votes: 28400, daysUnanswered: 87, timesDeflected: 3, tag: "justice", status: "unanswered",
+    votes: 28400, timesDeflected: 3, tag: "justice", status: "unanswered",
+    submittedDate: "2025-02-01",
     history: [
       { date: "1 Feb 2025", type: "submitted", note: "Question submitted" },
       { date: "Mar 2025",   type: "deflected", note: "Deflected to 'Sir Brian Langstaff review'" },
@@ -72,7 +80,8 @@ const SEED_QUESTIONS = [
   {
     id: 8,
     text: "Will you introduce a legally binding target to end sewage dumping in rivers and seas?",
-    votes: 22100, daysUnanswered: 76, timesDeflected: 2, tag: "environment", status: "unanswered",
+    votes: 22100, timesDeflected: 2, tag: "environment", status: "unanswered",
+    submittedDate: "2025-02-10",
     history: [
       { date: "10 Feb 2025", type: "submitted", note: "Question submitted" },
       { date: "Mar 2025",    type: "deflected", note: "Deflected to 'water company investment plans'" },
@@ -82,10 +91,31 @@ const SEED_QUESTIONS = [
 
 const TAGS = ["all", "welfare", "NHS", "accountability", "pensioners", "immigration", "justice", "environment"];
 
+// ── Helpers ────────────────────────────────────────────────────────────────
 const fmt = (n) => n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(n);
 const histIcon  = (t) => t === "submitted" ? "◎" : t === "deflected" ? "✕" : "✓";
 const histColor = (t) => t === "submitted" ? "#9CA3AF" : t === "deflected" ? "#EF4444" : "#22C55E";
 
+// Live days counter — calculates from submittedDate to today
+const daysAgo = (dateStr) => {
+  if (!dateStr) return 0;
+  const submitted = new Date(dateStr);
+  const today = new Date();
+  const diff = Math.floor((today - submitted) / (1000 * 60 * 60 * 24));
+  return diff;
+};
+
+// Next PMQs — always the next Wednesday (PMQs is every Wednesday when parliament sits)
+const nextPMQs = () => {
+  const today = new Date();
+  const day = today.getDay(); // 0=Sun, 3=Wed
+  const daysUntilWed = (3 - day + 7) % 7 || 7;
+  const next = new Date(today);
+  next.setDate(today.getDate() + daysUntilWed);
+  return next.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+};
+
+// ── Claude API ─────────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are helping a UK civic accountability platform called Community Question.
 Find semantically similar questions to the one submitted. Return ONLY valid JSON:
 {"similar":[{"id":<number>,"reason":"<one sentence>"}],"isDistinct":<boolean>,"canonicalSuggestion":"<string or null>"}
@@ -102,7 +132,9 @@ async function checkSimilar(text, questions) {
       "anthropic-dangerous-direct-browser-access": "true",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-5", max_tokens: 800, system,
+      model: "claude-sonnet-4-5",
+      max_tokens: 800,
+      system,
       messages: [{ role: "user", content: `New question: "${text}"` }],
     }),
   });
@@ -111,6 +143,7 @@ async function checkSimilar(text, questions) {
   return JSON.parse(raw.replace(/```json|```/g, "").trim());
 }
 
+// ── Styles ─────────────────────────────────────────────────────────────────
 const S = {
   app:       { minHeight: "100vh", background: "#0A0A0F", color: "#E8E6E0", fontFamily: "'Syne', sans-serif" },
   nav:       { position: "sticky", top: 0, zIndex: 100, background: "rgba(10,10,15,0.94)", backdropFilter: "blur(12px)", borderBottom: "1px solid rgba(255,255,255,0.06)", padding: "0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" },
@@ -119,7 +152,9 @@ const S = {
   navBtn:    { background: "#E8C547", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 12, fontWeight: 700, color: "#0A0A0F", cursor: "pointer", fontFamily: "'Syne', sans-serif" },
   page:      { maxWidth: 720, margin: "0 auto", padding: "32px 20px 80px" },
   backBtn:   { background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#6B7280", padding: 0, marginBottom: 24, display: "flex", alignItems: "center", gap: 6, fontFamily: "'Syne', sans-serif" },
-  heroWrap:  { marginBottom: 40, paddingBottom: 32, borderBottom: "1px solid rgba(255,255,255,0.08)" },
+
+  // hero
+  heroWrap:  { marginBottom: 32, paddingBottom: 32, borderBottom: "1px solid rgba(255,255,255,0.08)" },
   heroEye:   { fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: "#6B7280", textTransform: "uppercase", marginBottom: 10 },
   heroTitle: { fontFamily: "'Playfair Display', serif", fontSize: "clamp(26px,5vw,40px)", lineHeight: 1.12, letterSpacing: "-1px", color: "#F5F0E8", marginBottom: 10 },
   heroAccent:{ fontStyle: "italic", color: "#E8C547" },
@@ -127,16 +162,37 @@ const S = {
   statsRow:  { display: "flex", gap: 28, flexWrap: "wrap" },
   statVal:   (r) => ({ fontSize: 26, fontWeight: 700, color: r ? "#EF4444" : "#F5F0E8", lineHeight: 1 }),
   statLbl:   { fontSize: 11, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.08em" },
-  pmCard:    { background: "linear-gradient(135deg,#1a1a2e,#16213e)", border: "1px solid rgba(232,197,71,0.2)", borderRadius: 16, padding: "20px 24px", marginBottom: 32, display: "flex", alignItems: "center", gap: 16 },
+
+  // top question banner
+  topBanner: { background: "linear-gradient(135deg, #1a0a00, #2a1500)", border: "1px solid rgba(232,197,71,0.35)", borderRadius: 16, padding: "20px 24px", marginBottom: 24 },
+  topEye:    { fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", color: "#E8C547", textTransform: "uppercase", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 },
+  topDot:    { width: 6, height: 6, borderRadius: "50%", background: "#E8C547", animation: "pulse 2s infinite" },
+  topQ:      { fontSize: 15, fontWeight: 600, color: "#F5F0E8", lineHeight: 1.5, marginBottom: 14 },
+  topStats:  { display: "flex", gap: 20, flexWrap: "wrap" },
+  topStat:   (r) => ({ display: "flex", flexDirection: "column", gap: 2 }),
+  topVal:    (r) => ({ fontSize: 22, fontWeight: 700, color: r ? "#EF4444" : "#E8C547", lineHeight: 1 }),
+  topLbl:    { fontSize: 10, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.08em" },
+
+  // pmqs banner
+  pmqsBanner:{ background: "#111118", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: "12px 16px", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 },
+  pmqsLeft:  { fontSize: 12, color: "#6B7280" },
+  pmqsRight: { fontSize: 12, fontWeight: 700, color: "#E8C547" },
+
+  // pm card
+  pmCard:    { background: "linear-gradient(135deg,#1a1a2e,#16213e)", border: "1px solid rgba(232,197,71,0.2)", borderRadius: 16, padding: "20px 24px", marginBottom: 24, display: "flex", alignItems: "center", gap: 16 },
   pmAvatar:  { width: 52, height: 52, borderRadius: "50%", background: "rgba(232,197,71,0.15)", border: "2px solid rgba(232,197,71,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, color: "#E8C547", flexShrink: 0 },
   pmName:    { fontFamily: "'Playfair Display', serif", fontSize: 17, fontWeight: 700, color: "#F5F0E8", marginBottom: 2 },
   pmRole:    { fontSize: 12, color: "#6B7280" },
   pmPct:     { fontSize: 28, fontWeight: 700, color: "#EF4444", lineHeight: 1 },
   pmPctLbl:  { fontSize: 11, color: "#6B7280", textAlign: "right", lineHeight: 1.4 },
+
+  // controls
   ctrlRow:   { display: "flex", gap: 8, marginBottom: 16, alignItems: "center", flexWrap: "wrap" },
   sortBtn:   (a) => ({ background: a ? "#E8C547" : "transparent", border: "1px solid " + (a ? "#E8C547" : "rgba(255,255,255,0.1)"), borderRadius: 6, padding: "6px 14px", fontSize: 12, fontWeight: 600, color: a ? "#0A0A0F" : "#9CA3AF", cursor: "pointer", fontFamily: "'Syne', sans-serif" }),
   tagBtn:    (a) => ({ background: a ? "rgba(232,197,71,0.15)" : "transparent", border: "1px solid " + (a ? "rgba(232,197,71,0.4)" : "rgba(255,255,255,0.08)"), borderRadius: 20, padding: "4px 12px", fontSize: 11, fontWeight: 600, color: a ? "#E8C547" : "#6B7280", cursor: "pointer", fontFamily: "'Syne', sans-serif", textTransform: "uppercase", letterSpacing: "0.06em" }),
   divV:      { width: 1, height: 20, background: "rgba(255,255,255,0.1)", margin: "0 4px" },
+
+  // question card
   qCard:     { background: "#111118", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "18px 20px", marginBottom: 8, cursor: "pointer", display: "flex", gap: 16, alignItems: "flex-start" },
   voteCol:   { display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 48, flexShrink: 0 },
   voteBtn:   (v) => ({ width: 38, height: 32, borderRadius: 8, border: v ? "none" : "1px solid rgba(255,255,255,0.12)", background: v ? "#E8C547" : "transparent", cursor: v ? "default" : "pointer", fontSize: 12, fontWeight: 700, color: v ? "#0A0A0F" : "#6B7280", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Syne', sans-serif" }),
@@ -146,13 +202,23 @@ const S = {
   qText:     { fontSize: 14, fontWeight: 500, color: "#E8E6E0", lineHeight: 1.55, marginBottom: 10 },
   qMeta:     { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" },
   pill:      (bg, c) => ({ fontSize: 10, background: bg, color: c, borderRadius: 4, padding: "3px 8px", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", whiteSpace: "nowrap" }),
+
+  // question detail
   detailHero:{ background: "#111118", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: 28, marginBottom: 16 },
+  detailTag: { display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" },
   detailQ:   { fontFamily: "'Playfair Display', serif", fontSize: "clamp(16px,3vw,21px)", color: "#F5F0E8", lineHeight: 1.45, marginBottom: 24, fontStyle: "italic" },
   statGrid:  { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 24 },
   statCard:  { background: "#0A0A0F", borderRadius: 10, padding: "14px 16px" },
   scV:       (r) => ({ fontSize: 26, fontWeight: 700, color: r ? "#EF4444" : "#F5F0E8", marginBottom: 2 }),
   scL:       { fontSize: 11, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.07em" },
   bigVote:   (v) => ({ width: "100%", padding: "14px 0", borderRadius: 10, border: "none", background: v ? "rgba(34,197,94,0.15)" : "#E8C547", cursor: v ? "default" : "pointer", fontSize: 14, fontWeight: 700, color: v ? "#22C55E" : "#0A0A0F", fontFamily: "'Syne', sans-serif" }),
+
+  // next pmqs on detail page
+  nextPmqs:  { background: "rgba(232,197,71,0.06)", border: "1px solid rgba(232,197,71,0.15)", borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" },
+  nextPmqsL: { fontSize: 12, color: "#6B7280" },
+  nextPmqsR: { fontSize: 13, fontWeight: 700, color: "#E8C547" },
+
+  // timeline
   tlWrap:    { background: "#111118", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "24px 28px" },
   tlTitle:   { fontSize: 11, fontWeight: 700, color: "#4B5563", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 20 },
   tlItem:    { display: "flex", gap: 14, marginBottom: 18, position: "relative" },
@@ -160,6 +226,9 @@ const S = {
   tlDot:     (c) => ({ width: 16, height: 16, borderRadius: "50%", background: c + "22", border: "1.5px solid " + c, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: c, flexShrink: 0, marginTop: 2 }),
   tlDate:    { fontSize: 11, fontWeight: 700, color: "#6B7280", marginBottom: 2 },
   tlNote:    { fontSize: 13, color: "#9CA3AF", lineHeight: 1.5 },
+  tlPending: { background: "rgba(232,197,71,0.05)", border: "1px dashed rgba(232,197,71,0.2)", borderRadius: 8, padding: "10px 14px", marginTop: 8, fontSize: 12, color: "#6B7280" },
+
+  // submit
   submitCard:{ background: "#111118", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: 28 },
   label:     { fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 8 },
   textarea:  { width: "100%", minHeight: 110, background: "#0A0A0F", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "12px 14px", fontSize: 14, color: "#E8E6E0", fontFamily: "'Syne', sans-serif", outline: "none", resize: "vertical", boxSizing: "border-box", lineHeight: 1.6, display: "block" },
@@ -181,9 +250,12 @@ const S = {
   successBox:{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 16, padding: 40, textAlign: "center" },
 };
 
+// ── Main App ───────────────────────────────────────────────────────────────
 export default function App() {
   const [view, setView]               = useState("home");
-  const [questions, setQuestions]     = useState(SEED_QUESTIONS);
+  const [questions, setQuestions]     = useState(() =>
+    SEED_QUESTIONS.map((q) => ({ ...q, daysUnanswered: daysAgo(q.submittedDate) }))
+  );
   const [votedIds, setVotedIds]       = useState(new Set());
   const [sortBy, setSortBy]           = useState("votes");
   const [activeTag, setActiveTag]     = useState("all");
@@ -204,7 +276,7 @@ export default function App() {
     return () => document.removeEventListener("mousedown", fn);
   }, []);
 
-  // instant keyword matches — computed inline, no state update, no re-render loop
+  // instant keyword matches
   const getMatches = (text) => {
     if (text.trim().length < 4) return [];
     const words = text.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
@@ -230,7 +302,6 @@ export default function App() {
     setView("question");
   };
 
-  // KEY FIX: stable onChange — no setState that causes remount
   const onTextChange = (e) => {
     const val = e.target.value;
     setSubmitText(val);
@@ -249,7 +320,12 @@ export default function App() {
   };
 
   const submitNew = () => {
-    const q = { id: Date.now(), text: submitText, votes: 1, daysUnanswered: 0, timesDeflected: 0, tag: submitTag, status: "unanswered", history: [{ date: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }), type: "submitted", note: "Submitted by community" }] };
+    const q = {
+      id: Date.now(), text: submitText, votes: 1,
+      daysUnanswered: 0, timesDeflected: 0, tag: submitTag,
+      status: "unanswered", submittedDate: new Date().toISOString().split("T")[0],
+      history: [{ date: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }), type: "submitted", note: "Submitted by community" }],
+    };
     setQuestions((p) => [q, ...p]);
     setVotedIds((p) => new Set([...p, q.id]));
     setSubmitted(true);
@@ -259,14 +335,18 @@ export default function App() {
 
   const goHome = () => { setView("home"); setSubmitted(false); };
 
+  // derived
   const filtered = questions
     .filter((q) => activeTag === "all" || q.tag === activeTag)
     .sort((a, b) => sortBy === "votes" ? b.votes - a.votes : b.daysUnanswered - a.daysUnanswered);
 
-  const totalVoices     = questions.reduce((s, q) => s + q.votes, 0);
+  const topQuestion   = [...questions].sort((a, b) => b.votes - a.votes)[0];
+  const totalVoices   = questions.reduce((s, q) => s + q.votes, 0);
   const totalUnanswered = questions.filter((q) => q.status === "unanswered").length;
   const totalDeflected  = questions.reduce((s, q) => s + q.timesDeflected, 0);
+  const pmqsDate      = nextPMQs();
 
+  // ── Question card ───────────────────────────────────────────────────────
   const QCard = ({ q }) => (
     <div style={S.qCard}
       onClick={() => { setSelectedQId(q.id); setView("question"); }}
@@ -282,14 +362,18 @@ export default function App() {
         <p style={S.qText}>{q.text}</p>
         <div style={S.qMeta}>
           <span style={S.pill("rgba(255,255,255,0.06)", "#9CA3AF")}>{q.tag}</span>
-          {q.daysUnanswered > 0 && <span style={S.pill(q.daysUnanswered > 100 ? "rgba(239,68,68,0.12)" : "rgba(245,158,11,0.12)", q.daysUnanswered > 100 ? "#EF4444" : "#F59E0B")}>{q.daysUnanswered}d ignored</span>}
+          {q.daysUnanswered > 0 && (
+            <span style={S.pill(q.daysUnanswered > 100 ? "rgba(239,68,68,0.12)" : "rgba(245,158,11,0.12)", q.daysUnanswered > 100 ? "#EF4444" : "#F59E0B")}>
+              {q.daysUnanswered}d ignored
+            </span>
+          )}
           {q.timesDeflected > 0 && <span style={S.pill("rgba(239,68,68,0.08)", "#F87171")}>dodged {q.timesDeflected}×</span>}
         </div>
       </div>
     </div>
   );
 
-  // ── Views ───────────────────────────────────────────────────────────────
+  // ── Home view ───────────────────────────────────────────────────────────
   const HomeView = () => (
     <div style={S.page}>
       <div style={S.heroWrap}>
@@ -302,42 +386,85 @@ export default function App() {
           <div><div style={S.statVal(true)}>{totalDeflected}</div><div style={S.statLbl}>deflections logged</div></div>
         </div>
       </div>
+
+      {/* Top question banner */}
+      {topQuestion && (
+        <div style={S.topBanner}>
+          <div style={S.topEye}><div style={S.topDot} />Most wanted answer right now</div>
+          <p style={S.topQ}>"{topQuestion.text}"</p>
+          <div style={S.topStats}>
+            <div style={S.topStat()}>
+              <div style={S.topVal(false)}>{topQuestion.votes.toLocaleString()}</div>
+              <div style={S.topLbl}>voices</div>
+            </div>
+            <div style={S.topStat()}>
+              <div style={S.topVal(true)}>{topQuestion.daysUnanswered}</div>
+              <div style={S.topLbl}>days ignored</div>
+            </div>
+            <div style={S.topStat()}>
+              <div style={S.topVal(true)}>{topQuestion.timesDeflected}×</div>
+              <div style={S.topLbl}>deflected</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Next PMQs */}
+      <div style={S.pmqsBanner}>
+        <span style={S.pmqsLeft}>Next PMQs — your chance to have this raised in parliament</span>
+        <span style={S.pmqsRight}>{pmqsDate}</span>
+      </div>
+
+      {/* PM card */}
       <div style={S.pmCard}>
         <div style={S.pmAvatar}>KS</div>
         <div style={{ flex: 1 }}><p style={S.pmName}>Keir Starmer</p><p style={S.pmRole}>Prime Minister · Labour</p></div>
         <div style={{ textAlign: "right" }}><div style={S.pmPct}>11%</div><div style={S.pmPctLbl}>questions<br />answered</div></div>
       </div>
+
       <div style={S.ctrlRow}>
         <button style={S.sortBtn(sortBy === "votes")} onClick={() => setSortBy("votes")}>Most voices</button>
         <button style={S.sortBtn(sortBy === "days")}  onClick={() => setSortBy("days")}>Longest ignored</button>
         <div style={S.divV} />
         {TAGS.map((t) => <button key={t} style={S.tagBtn(activeTag === t)} onClick={() => setActiveTag(t)}>{t}</button>)}
       </div>
+
       {filtered.map((q) => <QCard key={q.id} q={q} />)}
     </div>
   );
 
+  // ── Question detail ─────────────────────────────────────────────────────
   const QuestionView = () => {
     const q = questions.find((x) => x.id === selectedQId);
     if (!q) return null;
+    const days = daysAgo(q.submittedDate);
     return (
       <div style={S.page}>
         <button style={S.backBtn} onClick={goHome}>← Back to questions</button>
         <div style={S.detailHero}>
-          <div style={S.qMeta}>
+          <div style={S.detailTag}>
             <span style={S.pill("rgba(255,255,255,0.06)", "#9CA3AF")}>{q.tag}</span>
             <span style={S.pill("rgba(239,68,68,0.12)", "#EF4444")}>unanswered</span>
+            {q.timesDeflected > 0 && <span style={S.pill("rgba(239,68,68,0.08)", "#F87171")}>deflected {q.timesDeflected}× at PMQs</span>}
           </div>
-          <p style={{ ...S.detailQ, marginTop: 14 }}>"{q.text}"</p>
+          <p style={S.detailQ}>"{q.text}"</p>
           <div style={S.statGrid}>
             <div style={S.statCard}><div style={S.scV(false)}>{q.votes.toLocaleString()}</div><div style={S.scL}>people asking</div></div>
-            <div style={S.statCard}><div style={S.scV(true)}>{q.daysUnanswered}</div><div style={S.scL}>days ignored</div></div>
+            <div style={S.statCard}><div style={S.scV(true)}>{days}</div><div style={S.scL}>days ignored</div></div>
             <div style={S.statCard}><div style={S.scV(true)}>{q.timesDeflected}</div><div style={S.scL}>deflections</div></div>
           </div>
           <button style={S.bigVote(votedIds.has(q.id))} onClick={(e) => handleVote(q.id, e)} disabled={votedIds.has(q.id)}>
             {votedIds.has(q.id) ? "✓  Your voice has been added" : "+  Add your voice to this question"}
           </button>
         </div>
+
+        {/* Next PMQs prompt */}
+        <div style={S.nextPmqs}>
+          <span style={S.nextPmqsL}>Could be raised at the next PMQs</span>
+          <span style={S.nextPmqsR}>{pmqsDate}</span>
+        </div>
+
+        {/* Timeline */}
         <div style={S.tlWrap}>
           <p style={S.tlTitle}>Deflection timeline</p>
           {q.history.map((h, i) => (
@@ -347,18 +474,30 @@ export default function App() {
               <div><div style={S.tlDate}>{h.date}</div><div style={S.tlNote}>{h.note}</div></div>
             </div>
           ))}
+          <div style={S.tlPending}>
+            Waiting for a direct answer. Every Wednesday at PMQs this question could be raised.
+            If you know an MP willing to ask it — <span style={{ color: "#E8C547", cursor: "pointer" }}>get in touch</span>.
+          </div>
         </div>
       </div>
     );
   };
 
-  // Submit is rendered inline (not as nested component) — this is the fix for focus loss
+  // ── Submit (inline to prevent focus loss) ──────────────────────────────
   const matches = getMatches(submitText);
 
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet" />
-      <style>{`* {margin:0;padding:0;box-sizing:border-box} body{background:#0A0A0F} ::-webkit-scrollbar{width:6px} ::-webkit-scrollbar-track{background:#0A0A0F} ::-webkit-scrollbar-thumb{background:#2a2a3a;border-radius:3px} @keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0A0A0F; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0A0A0F; }
+        ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 3px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+      `}</style>
       <div style={S.app}>
         <nav style={S.nav}>
           <span style={S.logo} onClick={goHome}>Community<span style={S.logoY}>Question</span></span>
@@ -412,16 +551,13 @@ export default function App() {
                     </div>
                   )}
                 </div>
-
                 <label style={S.label}>Topic</label>
                 <select style={S.select} value={submitTag} onChange={(e) => setSubmitTag(e.target.value)}>
                   {["general","welfare","NHS","accountability","pensioners","immigration","justice","environment","housing","education","economy"].map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
-
                 <button style={{ ...S.primaryBtn(submitText.trim().length < 20 || aiLoading), width: "100%" }} onClick={runAiCheck} disabled={submitText.trim().length < 20 || aiLoading}>
                   {aiLoading ? <><span style={S.spinner} />Checking for similar questions…</> : "Check for similar questions →"}
                 </button>
-
                 {aiResult && (
                   <div style={S.aiBox}>
                     <p style={S.aiTitle}>{aiResult.similar?.length > 0 ? `${aiResult.similar.length} similar question${aiResult.similar.length > 1 ? "s" : ""} already exist` : "No duplicates found — your question looks distinct"}</p>
