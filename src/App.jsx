@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
-import html2canvas from "html2canvas";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -14,15 +13,26 @@ const getSessionId = () => {
 };
 const SESSION_ID = getSessionId();
 
+// Read question ID from URL on load
+const getUrlQuestionId = () => {
+  const params = new URLSearchParams(window.location.search);
+  const q = params.get("q");
+  return q ? parseInt(q) : null;
+};
+
 const TAGS = ["all", "welfare", "NHS", "accountability", "pensioners", "immigration", "justice", "environment"];
 const PARTIES = ["Labour", "Conservative", "Liberal Democrats", "SNP", "Reform UK", "Green", "Plaid Cymru", "Other"];
-const STOP_WORDS = new Set(["will","your","what","that","have","this","with","they","from","been","when","does","were","about","which","their","there","would","could","should","shall","into","over","more","some","than","then","also","just","even","much","such","very","only","well","both","each","most","many","these","those","being","having","doing","going","coming","getting","making","taking","giving","saying","knowing","thinking","feeling"]);
 
-const fmt = (n) => n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(n);
-const histIcon  = (t) => t === "submitted" ? "◎" : t === "deflected" ? "✕" : t === "champion" ? "★" : "✓";
-const histColor = (t) => t === "submitted" ? "#555" : t === "deflected" ? "#FF3B3B" : t === "champion" ? "#22C55E" : "#22C55E";
-const daysAgo   = (d) => !d ? 0 : Math.floor((new Date() - new Date(d)) / 86400000);
-const fmtDate   = (d) => !d ? "" : new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+// Short word whitelist — important terms under 5 chars
+const SHORT_WORDS = new Set(["nhs","mps","gps","tax","law","cut","cuts","pay","war","aid","ban","fee","pip","dwp","esa","uc","pm","mp","gp","eu","un","net","vat","hmrc","gdp","ppe","pfi"]);
+const STOP_WORDS  = new Set(["will","your","what","that","have","this","with","they","from","been","when","does","were","about","which","their","there","would","could","should","shall","into","over","more","some","than","then","also","just","even","much","such","very","only","well","both","each","most","many","these","those","being","having","doing","going","coming","getting","making","taking","giving","saying","knowing","thinking","feeling"]);
+
+const fmt     = (n) => n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(n);
+const daysAgo = (d) => !d ? 0 : Math.floor((new Date() - new Date(d)) / 86400000);
+const fmtDate = (d) => !d ? "" : new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
+const histIcon  = (t) => t === "submitted" ? "◎" : t === "deflected" ? "✕" : t === "champion" ? "★" : t === "reported" ? "⚑" : "✓";
+const histColor = (t) => t === "submitted" ? "#555" : t === "deflected" ? "#FF3B3B" : t === "champion" ? "#22C55E" : t === "reported" ? "#F59E0B" : "#22C55E";
 
 const nextPMQs = () => {
   const today = new Date();
@@ -41,15 +51,37 @@ const CLASSIFY_PROMPT = `You are helping a UK civic accountability platform. Giv
 {"tag":"<one of: welfare,NHS,accountability,pensioners,immigration,justice,environment,housing,education,economy,general>","quality":"<pass or fail>","failReason":"<if fail, one short sentence>"}
 A question passes if it is a genuine coherent question relevant to a politician or government policy, not abusive or inappropriate. A question fails if it is gibberish, abusive, completely off-topic, or not a question.`;
 
-const SIMILAR_PROMPT = `You are helping a UK civic accountability platform called Community Question. Find semantically similar questions to the one submitted. Return ONLY valid JSON:
-{"similar":[{"id":<number>,"reason":"<one sentence>"}],"isDistinct":<boolean>,"canonicalSuggestion":"<string or null>"}
+const SIMILAR_PROMPT = `You are helping a UK civic accountability platform called Community Question.
+
+Your job: identify which existing questions ask the SAME underlying thing as the new question — meaning a single honest answer from the Prime Minister would satisfy both askers.
+
+Two questions are the SAME only if:
+- They demand the same specific information, decision, or commitment
+- An honest answer to one would fully answer the other
+- They share not just a topic, but the actual ask
+
+Two questions are DIFFERENT (even if related) if:
+- They are about the same broad topic but ask about different aspects, groups, mechanisms, or outcomes
+- One asks "why" and the other asks "how" / "when" / "who" / "whether"
+- They focus on different people, places, time periods, or policy areas
+- A politician could answer one fully without addressing the other
+
+Be strict. False matches dilute the platform's credibility. When in doubt, treat questions as DIFFERENT and return an empty similar array.
+
+Return ONLY valid JSON in this exact shape:
+{"similar":[{"id":<number>,"reason":"<one sentence explaining why the SAME answer satisfies both>"}],"isDistinct":<boolean>,"canonicalSuggestion":"<string or null>"}
+
+- "similar" should only contain questions where the SAME answer would satisfy both askers. Empty array if none.
+- "isDistinct" is true if the new question is NOT a match for any existing question.
+- "canonicalSuggestion" is an optional cleaner phrasing of the new question, or null.
+
 Existing questions: QUESTIONS_PLACEHOLDER`;
 
 async function classifyQuestion(text) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": import.meta.env.VITE_ANTHROPIC_KEY, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
-    body: JSON.stringify({ model: "claude-sonnet-4-5", max_tokens: 200, system: CLASSIFY_PROMPT, messages: [{ role: "user", content: `Question: "${text}"` }] }),
+    body: JSON.stringify({ model: "claude-haiku-4-5", max_tokens: 200, system: CLASSIFY_PROMPT, messages: [{ role: "user", content: `Question: "${text}"` }] }),
   });
   const data = await res.json();
   const raw = data.content?.find((b) => b.type === "text")?.text || "{}";
@@ -61,7 +93,7 @@ async function checkSimilar(text, questions) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": import.meta.env.VITE_ANTHROPIC_KEY, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
-    body: JSON.stringify({ model: "claude-sonnet-4-5", max_tokens: 800, system, messages: [{ role: "user", content: `New question: "${text}"` }] }),
+    body: JSON.stringify({ model: "claude-haiku-4-5", max_tokens: 800, system, messages: [{ role: "user", content: `New question: "${text}"` }] }),
   });
   const data = await res.json();
   const raw = data.content?.find((b) => b.type === "text")?.text || "{}";
@@ -79,20 +111,19 @@ const S = {
   backBtn:    { background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#555", padding: 0, marginBottom: 24, display: "flex", alignItems: "center", gap: 6, fontFamily: "'Space Grotesk', sans-serif" },
   loading:    { display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh", fontSize: 13, color: "#555", fontFamily: "'Space Mono', monospace" },
 
-  // hero
   heroWrap:   { borderLeft: `3px solid ${R}`, paddingLeft: 20, marginBottom: 32 },
   heroTag:    { fontFamily: "'Space Mono', monospace", fontSize: 10, color: R, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 16 },
-  heroPara:   { fontSize: 15, color: "#888", lineHeight: 1.8, marginBottom: 16, maxWidth: 560 },
-  heroStatement: { fontSize: 15, fontWeight: 600, color: "#fff", lineHeight: 1.7, marginBottom: 20, maxWidth: 560 },
+  heroPara:   { fontSize: 15, color: "#888", lineHeight: 1.8, marginBottom: 20, maxWidth: 560 },
   heroCta:    { fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#555", letterSpacing: "0.02em" },
 
-  strip:      { background: R, padding: "16px 20px", margin: "0 -20px 32px", display: "flex", gap: 0, justifyContent: "space-around", textAlign: "center", flexWrap: "nowrap" },
+  strip:      { background: R, padding: "16px 20px", margin: "0 -20px 32px", display: "flex", gap: 0, justifyContent: "space-around", textAlign: "center" },
   stripItem:  { flex: 1, padding: "0 8px" },
   stripVal:   { fontFamily: "'Space Mono', monospace", fontSize: "clamp(16px,3.5vw,24px)", fontWeight: 700, color: "#fff", lineHeight: 1 },
   stripLbl:   { fontSize: "clamp(8px,1.4vw,10px)", color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 4 },
 
   topBanner:  { background: "#111", border: `1px solid rgba(255,255,255,0.05)`, borderLeft: `3px solid ${R}`, padding: "20px 24px", marginBottom: 2, cursor: "pointer" },
-  topLabel:   { fontFamily: "'Space Mono', monospace", fontSize: 10, color: R, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 },
+  topLabel:   { fontSize: 10, color: R, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10, display: "flex", alignItems: "center", gap: 8, fontFamily: "'Space Mono', monospace" },
+  topDot:     { width: 6, height: 6, borderRadius: "50%", background: R, animation: "pulse 2s infinite", flexShrink: 0 },
   topQ:       { fontSize: 15, fontWeight: 600, color: "#fff", lineHeight: 1.5, marginBottom: 16 },
   topStats:   { display: "flex", gap: 28, flexWrap: "wrap" },
   topVal:     (r) => ({ fontFamily: "'Space Mono', monospace", fontSize: 22, fontWeight: 700, color: r ? R : "#fff", lineHeight: 1 }),
@@ -127,7 +158,7 @@ const S = {
   scV:        (r) => ({ fontFamily: "'Space Mono', monospace", fontSize: 26, fontWeight: 700, color: r ? R : "#fff", marginBottom: 2 }),
   scL:        { fontSize: 10, color: "#444", textTransform: "uppercase", letterSpacing: "0.08em" },
   bigVote:    (v) => ({ width: "100%", padding: "13px 0", border: "none", borderRadius: 0, background: v ? "rgba(34,197,94,0.12)" : R, cursor: v ? "default" : "pointer", fontSize: 13, fontWeight: 700, color: v ? G : "#fff", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "0.04em", textTransform: "uppercase" }),
-  shareBtn:   (l) => ({ background: "transparent", border: `1px solid rgba(255,59,59,0.3)`, borderRadius: 0, padding: "12px 0", width: "100%", marginTop: 6, fontSize: 12, fontWeight: 700, color: l ? "#444" : R, cursor: l ? "not-allowed" : "pointer", fontFamily: "'Space Grotesk', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, textTransform: "uppercase", letterSpacing: "0.04em" }),
+  shareBtn:   (s) => ({ background: s ? "rgba(34,197,94,0.08)" : "transparent", border: `1px solid ${s ? "rgba(34,197,94,0.3)" : "rgba(255,59,59,0.3)"}`, borderRadius: 0, padding: "12px 0", width: "100%", marginTop: 6, fontSize: 12, fontWeight: 700, color: s ? G : R, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, textTransform: "uppercase", letterSpacing: "0.04em" }),
   reportBtn:  { background: "transparent", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 0, padding: "8px 0", width: "100%", marginTop: 6, fontSize: 11, fontWeight: 700, color: "#333", cursor: "pointer", fontFamily: "'Space Mono', monospace", textTransform: "uppercase", letterSpacing: "0.06em" },
 
   nextPmqs:   { background: "rgba(255,59,59,0.05)", border: "1px solid rgba(255,59,59,0.12)", padding: "11px 16px", marginBottom: 2, display: "flex", alignItems: "center", justifyContent: "space-between" },
@@ -139,7 +170,7 @@ const S = {
   championName:  { fontSize: 17, fontWeight: 700, color: "#fff", marginBottom: 4 },
   championMeta:  { fontSize: 13, color: "#888", marginBottom: 8 },
   championDate:  { fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#555", marginBottom: 12 },
-  copyLinkBtn:   { background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 0, padding: "8px 16px", fontSize: 11, fontWeight: 700, color: G, cursor: "pointer", fontFamily: "'Space Mono', monospace", textTransform: "uppercase", letterSpacing: "0.06em" },
+  copyLinkBtn:   (s) => ({ background: s ? "rgba(34,197,94,0.15)" : "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: 0, padding: "8px 16px", fontSize: 11, fontWeight: 700, color: G, cursor: "pointer", fontFamily: "'Space Mono', monospace", textTransform: "uppercase", letterSpacing: "0.06em" }),
 
   pledgeBox:  { background: "#111", border: "1px solid rgba(255,255,255,0.06)", padding: "20px 24px", marginBottom: 2 },
   pledgeTitle:{ fontFamily: "'Space Mono', monospace", fontSize: 11, fontWeight: 700, color: R, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" },
@@ -157,21 +188,6 @@ const S = {
   tlNote:     { fontSize: 13, color: "#888", lineHeight: 1.55 },
   tlPending:  { background: "rgba(255,59,59,0.04)", border: "1px dashed rgba(255,59,59,0.2)", padding: "10px 14px", marginTop: 8, fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#555" },
 
-  shareCardWrap: { position: "fixed", left: -9999, top: -9999, width: 600, background: "#0D1117", overflow: "hidden", fontFamily: "'Space Grotesk', sans-serif" },
-  scTop:      { padding: "24px 28px 20px" },
-  scLogo:     { fontFamily: "'Space Mono', monospace", fontSize: 12, fontWeight: 700, color: R, letterSpacing: "0.06em", marginBottom: 16 },
-  scQ:        { fontSize: 16, fontWeight: 600, color: "#fff", lineHeight: 1.5, marginBottom: 20 },
-  scStats:    { display: "flex", borderTop: "1px solid rgba(255,255,255,0.08)" },
-  scStat:     { flex: 1, padding: "16px 20px", borderRight: "1px solid rgba(255,255,255,0.08)" },
-  scStatLast: { flex: 1, padding: "16px 20px" },
-  scStatV:    (r) => ({ fontFamily: "'Space Mono', monospace", fontSize: 26, fontWeight: 700, color: r ? R : "#fff", marginBottom: 4 }),
-  scStatL:    { fontFamily: "'Space Mono', monospace", fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: "0.1em" },
-  scChampion: { background: "rgba(34,197,94,0.08)", borderTop: "1px solid rgba(34,197,94,0.15)", padding: "10px 28px", display: "flex", alignItems: "center", gap: 8 },
-  scChampText:{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: G, fontWeight: 700 },
-  scFooter:   { background: "#161b22", padding: "12px 28px", display: "flex", justifyContent: "space-between", alignItems: "center" },
-  scFooterL:  { fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#444" },
-  scFooterR:  { fontFamily: "'Space Mono', monospace", fontSize: 11, fontWeight: 700, color: R },
-
   submitCard: { background: "#111", border: "1px solid rgba(255,255,255,0.06)", padding: 28 },
   label:      { fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, color: "#444", textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 },
   textarea:   { width: "100%", minHeight: 110, background: "#0A0A0A", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 0, padding: "12px 14px", fontSize: 14, color: "#E8E6E0", fontFamily: "'Space Grotesk', sans-serif", outline: "none", resize: "vertical", boxSizing: "border-box", lineHeight: 1.6, display: "block" },
@@ -188,35 +204,40 @@ const S = {
   aiItemFt:   { display: "flex", justifyContent: "space-between", alignItems: "center" },
   joinBtn:    { fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, color: R, background: "rgba(255,59,59,0.08)", border: "1px solid rgba(255,59,59,0.2)", borderRadius: 0, padding: "4px 10px", cursor: "pointer" },
   primaryBtn: (d) => ({ background: d ? "rgba(255,255,255,0.03)" : R, border: "none", borderRadius: 0, padding: "13px 24px", fontSize: 12, fontWeight: 700, color: d ? "#333" : "#fff", cursor: d ? "not-allowed" : "pointer", fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase", letterSpacing: "0.04em" }),
+  secondaryBtn: { background: "transparent", border: `1px solid rgba(255,59,59,0.3)`, borderRadius: 0, padding: "13px 24px", fontSize: 12, fontWeight: 700, color: R, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase", letterSpacing: "0.04em" },
   spinner:    { display: "inline-block", width: 12, height: 12, border: "2px solid rgba(255,59,59,0.3)", borderTopColor: R, borderRadius: "50%", animation: "spin 0.8s linear infinite", verticalAlign: "middle", marginRight: 8 },
   successBox: { background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)", padding: 40, textAlign: "center" },
   errorBox:   { background: "rgba(255,59,59,0.06)", border: "1px solid rgba(255,59,59,0.2)", padding: 20, marginTop: 12 },
   errorTitle: { fontFamily: "'Space Mono', monospace", fontSize: 10, fontWeight: 700, color: R, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 },
   errorText:  { fontSize: 13, color: "#888", lineHeight: 1.6 },
   loadingBox: { background: "rgba(255,59,59,0.04)", border: "1px solid rgba(255,59,59,0.15)", padding: "24px 20px", marginTop: 12, textAlign: "center" },
+  useWordingBtn: { background: "rgba(255,59,59,0.08)", border: "1px solid rgba(255,59,59,0.2)", borderRadius: 0, padding: "6px 12px", fontSize: 11, fontWeight: 700, color: R, cursor: "pointer", fontFamily: "'Space Mono', monospace", textTransform: "uppercase", letterSpacing: "0.04em", marginLeft: 8, whiteSpace: "nowrap" },
 };
 
 // ── Main App ───────────────────────────────────────────────────────────────
 export default function App() {
-  const [view, setView]                 = useState("home");
+  const urlQId = getUrlQuestionId();
+
+  const [view, setView]                 = useState(urlQId ? "question" : "home");
   const [questions, setQuestions]       = useState([]);
   const [loading, setLoading]           = useState(true);
   const [votedIds, setVotedIds]         = useState(new Set());
   const [reportedIds, setReportedIds]   = useState(new Set());
   const [sortBy, setSortBy]             = useState("votes");
   const [activeTag, setActiveTag]       = useState("all");
-  const [selectedQId, setSelectedQId]   = useState(null);
+  const [selectedQId, setSelectedQId]   = useState(urlQId);
   const [deflections, setDeflections]   = useState({});
   const [submitText, setSubmitText]     = useState("");
   const [submitTag, setSubmitTag]       = useState("");
   const [aiResult, setAiResult]         = useState(null);
   const [aiLoading, setAiLoading]       = useState(false);
   const [submitted, setSubmitted]       = useState(false);
+  const [submittedQId, setSubmittedQId] = useState(null);
   const [showDrop, setShowDrop]         = useState(false);
   const [dropHover, setDropHover]       = useState(-1);
-  const [shareLoading, setShareLoading] = useState(false);
   const [qualityError, setQualityError] = useState("");
   const [autoChecked, setAutoChecked]   = useState(false);
+  const [shareSuccess, setShareSuccess] = useState(false);
   const [copySuccess, setCopySuccess]   = useState(false);
   const [showPledgeForm, setShowPledgeForm]         = useState(false);
   const [pledgeName, setPledgeName]                 = useState("");
@@ -224,8 +245,7 @@ export default function App() {
   const [pledgeConstituency, setPledgeConstituency] = useState("");
   const [pledgeSubmitting, setPledgeSubmitting]     = useState(false);
   const [pledgeSuccess, setPledgeSuccess]           = useState(false);
-  const wrapRef      = useRef(null);
-  const shareCardRef = useRef(null);
+  const wrapRef = useRef(null);
 
   useEffect(() => { loadData(); }, []);
   useEffect(() => { window.scrollTo({ top: 0, behavior: "instant" }); }, [view, selectedQId]);
@@ -287,23 +307,29 @@ export default function App() {
     setPledgeSubmitting(false);
   };
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(`${window.location.origin}?q=${selectedQId}`);
+  // Share — copy direct question URL to clipboard
+  const handleShare = (qid) => {
+    const url = `${window.location.origin}?q=${qid}`;
+    navigator.clipboard.writeText(url);
+    setShareSuccess(true);
+    setTimeout(() => setShareSuccess(false), 2000);
+  };
+
+  // Copy link for MP champion
+  const handleCopyLink = (qid) => {
+    const url = `${window.location.origin}?q=${qid}`;
+    navigator.clipboard.writeText(url);
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 2000);
   };
 
-  const handleShare = async (q) => {
-    setShareLoading(true);
-    await new Promise((r) => setTimeout(r, 100));
-    try {
-      const canvas = await html2canvas(shareCardRef.current, { backgroundColor: "#0D1117", scale: 2, useCORS: true, logging: false });
-      const link = document.createElement("a");
-      link.download = `community-question-${q.id}.png`;
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-    } catch (err) { console.error(err); }
-    setShareLoading(false);
+  // Copy link for submitted question
+  const handleShareSubmitted = () => {
+    if (!submittedQId) return;
+    const url = `${window.location.origin}?q=${submittedQId}`;
+    navigator.clipboard.writeText(url);
+    setShareSuccess(true);
+    setTimeout(() => setShareSuccess(false), 2000);
   };
 
   const runAiCheck = async () => {
@@ -323,13 +349,15 @@ export default function App() {
     setAiLoading(false);
   };
 
-  const submitNew = async () => {
+  const submitNew = async (textToSubmit) => {
+    const finalText = textToSubmit || submitText;
     const { data, error } = await supabase.from("questions")
-      .insert({ text: submitText, tag: submitTag || "general", status: "unanswered", submitted_date: new Date().toISOString().split("T")[0], times_deflected: 0 })
+      .insert({ text: finalText, tag: submitTag || "general", status: "unanswered", submitted_date: new Date().toISOString().split("T")[0], times_deflected: 0 })
       .select().single();
     if (!error && data) {
       await supabase.from("deflections").insert({ question_id: data.id, event_date: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }), event_type: "submitted", note: "Question submitted by community" });
       await supabase.from("votes").insert({ question_id: data.id, session_id: SESSION_ID });
+      setSubmittedQId(data.id);
       await loadData();
     }
     setSubmitted(true); setSubmitText(""); setAiResult(null); setSubmitTag("");
@@ -342,8 +370,11 @@ export default function App() {
   }, []);
 
   const getMatches = (text) => {
-    if (text.trim().length < 4) return [];
-    const words = text.toLowerCase().split(/\s+/).filter((w) => w.length > 4 && !STOP_WORDS.has(w));
+    if (text.trim().length < 2) return [];
+    const words = text.toLowerCase().split(/\s+/).filter((w) => {
+      if (SHORT_WORDS.has(w)) return true;
+      return w.length > 5 && !STOP_WORDS.has(w);
+    });
     if (words.length === 0) return [];
     return questions.map((q) => ({ ...q, score: words.reduce((s, w) => s + (q.text.toLowerCase().includes(w) ? 1 : 0), 0) }))
       .filter((q) => q.score > 0).sort((a, b) => b.score - a.score || b.votes - a.votes).slice(0, 4);
@@ -358,15 +389,30 @@ export default function App() {
     if (qualityError) setQualityError("");
     if (submitTag) setSubmitTag("");
     setAutoChecked(false);
-    setShowDrop(v.trim().length >= 4);
+    setShowDrop(v.trim().length >= 2);
   };
 
-  const goHome = () => { setView("home"); setSubmitted(false); setPledgeSuccess(false); setShowPledgeForm(false); setCopySuccess(false); };
+  const goHome = () => {
+    setView("home"); setSubmitted(false); setPledgeSuccess(false);
+    setShowPledgeForm(false); setCopySuccess(false); setShareSuccess(false);
+    setSubmittedQId(null);
+    window.history.pushState({}, "", window.location.pathname);
+  };
+
+  const openQuestion = (qid) => {
+    setSelectedQId(qid); setView("question");
+    setPledgeSuccess(false); setShowPledgeForm(false);
+    window.history.pushState({}, "", `?q=${qid}`);
+  };
 
   const getSorted = (qs) => {
     if (sortBy === "votes")  return [...qs].sort((a, b) => b.votes - a.votes);
     if (sortBy === "days")   return [...qs].sort((a, b) => b.daysUnanswered - a.daysUnanswered);
-    if (sortBy === "recent") return [...qs].sort((a, b) => new Date(b.submitted_date) - new Date(a.submitted_date));
+    if (sortBy === "recent") return [...qs].sort((a, b) => {
+  const dateDiff = new Date(b.submitted_date) - new Date(a.submitted_date);
+  if (dateDiff !== 0) return dateDiff;
+  return new Date(b.created_at) - new Date(a.created_at);
+});
     return qs;
   };
 
@@ -382,7 +428,7 @@ export default function App() {
 
   const QCard = ({ q }) => (
     <div style={S.qCard}
-      onClick={() => { setSelectedQId(q.id); setView("question"); setPledgeSuccess(false); setShowPledgeForm(false); }}
+      onClick={() => openQuestion(q.id)}
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255,59,59,0.25)"; e.currentTarget.style.background = "#141414"; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)"; e.currentTarget.style.background = "#111"; }}
     >
@@ -408,36 +454,20 @@ export default function App() {
   return (
     <>
       <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
-      <style>{`* {margin:0;padding:0;box-sizing:border-box} body{background:#0A0A0A} ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:#0A0A0A} ::-webkit-scrollbar-thumb{background:#222} @keyframes spin{to{transform:rotate(360deg)}}`}</style>
-
-      {selectedQ && (
-        <div ref={shareCardRef} style={S.shareCardWrap}>
-          <div style={S.scTop}>
-            <div style={S.scLogo}>COMMUNITYQUESTION.UK</div>
-            <div style={S.scQ}>"{selectedQ.text}"</div>
-          </div>
-          <div style={S.scStats}>
-            <div style={S.scStat}><div style={S.scStatV(false)}>{selectedQ.votes.toLocaleString()}</div><div style={S.scStatL}>people asking</div></div>
-            <div style={S.scStat}><div style={S.scStatV(true)}>{selectedQ.daysUnanswered}</div><div style={S.scStatL}>days ignored</div></div>
-            <div style={S.scStatLast}><div style={S.scStatV(true)}>{selectedQ.timesDeflected}×</div><div style={S.scStatL}>dodged</div></div>
-          </div>
-          {hasChampion && (
-            <div style={S.scChampion}>
-              <span style={{ fontSize: 12, color: G }}>★</span>
-              <span style={S.scChampText}>{selectedQ.mp_champion_name} MP ({selectedQ.mp_champion_party}) pledged to raise this at PMQs</span>
-            </div>
-          )}
-          <div style={S.scFooter}>
-            <span style={S.scFooterL}>Directed at Keir Starmer · Prime Minister</span>
-            <span style={S.scFooterR}>Add your voice →</span>
-          </div>
-        </div>
-      )}
+      <style>{`
+        * {margin:0;padding:0;box-sizing:border-box}
+        body{background:#0A0A0A}
+        ::-webkit-scrollbar{width:4px}
+        ::-webkit-scrollbar-track{background:#0A0A0A}
+        ::-webkit-scrollbar-thumb{background:#222}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+      `}</style>
 
       <div style={S.app}>
         <nav style={S.nav}>
           <span style={S.logo} onClick={goHome}>COMMUNITY<span style={S.logoR}>QUESTION</span></span>
-          <button style={S.navBtn} onClick={() => { setView("submit"); setSubmitted(false); setAiResult(null); setSubmitText(""); setQualityError(""); setAutoChecked(false); }}>Ask a question</button>
+          <button style={S.navBtn} onClick={() => { setView("submit"); setSubmitted(false); setAiResult(null); setSubmitText(""); setQualityError(""); setAutoChecked(false); setSubmittedQId(null); }}>Ask a question</button>
         </nav>
 
         {loading ? (
@@ -448,25 +478,24 @@ export default function App() {
             {view === "home" && (
               <div style={S.page}>
                 <div style={S.heroWrap}>
-                  <div style={S.heroTag}>// Community Question</div>
+                  <div style={S.heroTag}>// To the Prime Minister</div>
                   <p style={S.heroPara}>Every day, thousands of people are asking the same questions — scattered, individual, easy to ignore. We bring those voices together. One question. One number. One permanent public record that grows every day it goes unanswered.</p>
-                  <p style={S.heroStatement}>They have no obligation to answer. But everyone can see that they haven't.</p>
                   <p style={S.heroCta}>Add your voice to a question already being asked — or submit one that hasn't been yet.</p>
                 </div>
 
                 <div style={S.strip}>
-                  <div style={S.stripItem}><div style={S.stripVal}>{totalVoices.toLocaleString()}</div><div style={S.stripLbl}>voices demanding answers</div></div>
+                  <div style={S.stripItem}><div style={S.stripVal}>{totalVoices.toLocaleString()}</div><div style={S.stripLbl}>voices</div></div>
                   <div style={S.stripItem}><div style={S.stripVal}>{totalUnanswered}</div><div style={S.stripLbl}>questions unanswered</div></div>
                   <div style={S.stripItem}><div style={S.stripVal}>{totalDeflected}</div><div style={S.stripLbl}>times dodged</div></div>
                 </div>
 
                 {topQuestion && (
                   <div style={S.topBanner}
-                    onClick={() => { setSelectedQId(topQuestion.id); setView("question"); }}
+                    onClick={() => openQuestion(topQuestion.id)}
                     onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(255,59,59,0.4)"}
                     onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)"}
                   >
-                    <div style={S.topLabel}>// Most wanted answer right now</div>
+                    <div style={S.topLabel}><div style={S.topDot} />Most wanted answer right now</div>
                     <p style={S.topQ}>"{topQuestion.text}"</p>
                     <div style={S.topStats}>
                       <div><div style={S.topVal(false)}>{topQuestion.votes.toLocaleString()}</div><div style={S.topLbl}>voices</div></div>
@@ -478,7 +507,7 @@ export default function App() {
 
                 <div style={S.pmqsBanner}>
                   <span style={S.pmqsLeft}>// next PMQs</span>
-                  <span style={S.pmqsRight}>{pmqsDate} — will they answer this time?</span>
+                  <span style={S.pmqsRight}>{pmqsDate}</span>
                 </div>
 
                 <div style={S.ctrlRow}>
@@ -520,8 +549,8 @@ export default function App() {
                   <button style={S.bigVote(votedIds.has(selectedQ.id))} onClick={(e) => handleVote(selectedQ.id, e)} disabled={votedIds.has(selectedQ.id)}>
                     {votedIds.has(selectedQ.id) ? "✓  Your voice has been added" : "+  Add your voice"}
                   </button>
-                  <button style={S.shareBtn(shareLoading)} onClick={() => handleShare(selectedQ)} disabled={shareLoading}>
-                    {shareLoading ? <><span style={S.spinner} />Generating…</> : "↗  Share this question"}
+                  <button style={S.shareBtn(shareSuccess)} onClick={() => handleShare(selectedQ.id)}>
+                    {shareSuccess ? "✓  Link copied!" : "↗  Share this question"}
                   </button>
                   <button style={S.reportBtn} onClick={() => handleReport(selectedQ.id)}>
                     {reportedIds.has(selectedQ.id) ? "// Reported — thank you" : "// Report this question as inappropriate"}
@@ -534,18 +563,22 @@ export default function App() {
                     <p style={S.championName}>{selectedQ.mp_champion_name} MP</p>
                     <p style={S.championMeta}>{selectedQ.mp_champion_party} · {selectedQ.mp_champion_constituency}</p>
                     <p style={S.championDate}>Pledged to raise this question at PMQs{selectedQ.mp_champion_pledged_at && ` on ${new Date(selectedQ.mp_champion_pledged_at).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`}</p>
-                    <button style={S.copyLinkBtn} onClick={handleCopyLink}>{copySuccess ? "✓ Link copied!" : "// Copy question link"}</button>
+                    <button style={S.copyLinkBtn(copySuccess)} onClick={() => handleCopyLink(selectedQ.id)}>
+                      {copySuccess ? "✓ Link copied!" : "// Copy link to share"}
+                    </button>
                   </div>
                 ) : pledgeSuccess ? (
                   <div style={{ ...S.championBox, marginBottom: 2 }}>
                     <div style={S.championLabel}><span style={{ color: G }}>★</span> Pledge received</div>
                     <p style={{ fontSize: 13, color: "#888", marginBottom: 12 }}>Thank you. Your pledge has been recorded.</p>
-                    <button style={S.copyLinkBtn} onClick={handleCopyLink}>{copySuccess ? "✓ Link copied!" : "// Copy question link to share"}</button>
+                    <button style={S.copyLinkBtn(copySuccess)} onClick={() => handleCopyLink(selectedQ.id)}>
+                      {copySuccess ? "✓ Link copied!" : "// Copy link to share with your followers"}
+                    </button>
                   </div>
                 ) : (
                   <div style={S.pledgeBox}>
                     <p style={S.pledgeTitle}>// Are you an MP? Champion this question.</p>
-                    <p style={S.pledgeSub}>{selectedQ.votes.toLocaleString()} people want this answered. Pledge to raise it at PMQs and your name appears on this question and every share card.</p>
+                    <p style={S.pledgeSub}>{selectedQ.votes.toLocaleString()} people want this answered. Pledge to raise it at PMQs and your name appears on this question — publicly, permanently.</p>
                     {!showPledgeForm ? (
                       <button style={S.pledgeBtn(false)} onClick={() => setShowPledgeForm(true)}>I'm an MP — I'll raise this →</button>
                     ) : (
@@ -571,7 +604,7 @@ export default function App() {
                 </div>
 
                 <div style={S.tlWrap}>
-                  <p style={S.tlTitle}>// Deflection timeline</p>
+                  <p style={S.tlTitle}>// Timeline</p>
                   {(deflections[selectedQ.id] || []).map((h, i) => (
                     <div key={i} style={S.tlItem}>
                       {i < (deflections[selectedQ.id] || []).length - 1 && <div style={S.tlLine} />}
@@ -589,17 +622,23 @@ export default function App() {
               <div style={S.page}>
                 <button style={S.backBtn} onClick={() => { goHome(); setAiResult(null); setSubmitText(""); setQualityError(""); setAutoChecked(false); }}>← Back</button>
                 <div style={{ borderLeft: `3px solid ${R}`, paddingLeft: 20, marginBottom: 28 }}>
-                  <div style={S.heroTag}>// Ask a question</div>
-                  <h2 style={{ fontSize: "clamp(24px,4vw,32px)", fontWeight: 700, color: "#fff", letterSpacing: "-1px", marginBottom: 10 }}>Make them <span style={{ color: R }}>answer.</span></h2>
-                  <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7 }}>Be specific. Yes/no questions work best — they leave no room to dodge. If your question has already been asked, add your voice to it instead.</p>
+                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: R, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>// Ask the Prime Minister a question</div>
+                  <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7, maxWidth: 520 }}>
+                    Type your question below. If thousands of others are already asking the same thing, we'll find them and combine all your voices into one. A single, powerful question — with a number behind it that's impossible to ignore.
+                  </p>
                 </div>
 
                 {submitted ? (
                   <div style={S.successBox}>
                     <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 32, color: G, marginBottom: 12 }}>✓</div>
                     <p style={{ fontFamily: "'Space Mono', monospace", fontSize: 14, color: G, marginBottom: 8 }}>Question submitted.</p>
-                    <p style={{ fontSize: 13, color: "#555", marginBottom: 24 }}>Your voice has been added. Share it to build momentum.</p>
-                    <button style={S.primaryBtn(false)} onClick={() => { setSubmitted(false); goHome(); }}>Back to questions</button>
+                    <p style={{ fontSize: 13, color: "#555", marginBottom: 28 }}>Your voice has been added. Share it to build momentum.</p>
+                    <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                      <button style={S.primaryBtn(false)} onClick={() => { setSubmitted(false); goHome(); }}>Back to questions</button>
+                      <button style={{ ...S.secondaryBtn }} onClick={handleShareSubmitted}>
+                        {shareSuccess ? "✓ Link copied!" : "↗ Share this question"}
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div style={S.submitCard}>
@@ -673,15 +712,23 @@ export default function App() {
                               <p style={S.aiItemR}>{reason}</p>
                               <div style={S.aiItemFt}>
                                 <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#444" }}>{m.votes.toLocaleString()} voices</span>
-                                <button style={S.joinBtn} onClick={() => { handleVote(id, null); setSubmitted(true); }}>+ Add my voice →</button>
+                                <button style={S.joinBtn} onClick={() => { handleVote(id, null); setSubmitted(true); setSubmittedQId(id); }}>+ Add my voice →</button>
                               </div>
                             </div>
                           );
                         })}
                         {aiResult.isDistinct && (
                           <div style={{ marginTop: aiResult.similar?.length ? 16 : 0, paddingTop: aiResult.similar?.length ? 16 : 0, borderTop: aiResult.similar?.length ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
-                            {aiResult.canonicalSuggestion && <p style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#555", marginBottom: 12 }}>// Suggested wording: "{aiResult.canonicalSuggestion}"</p>}
-                            <button style={{ ...S.primaryBtn(false), width: "100%" }} onClick={submitNew}>Submit as new question</button>
+                            {aiResult.canonicalSuggestion && (
+                              <div style={{ marginBottom: 12 }}>
+                                <p style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#555", marginBottom: 8 }}>// Suggested wording:</p>
+                                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#0A0A0A", padding: "10px 12px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                                  <p style={{ fontSize: 13, color: "#888", fontStyle: "italic", flex: 1, lineHeight: 1.5 }}>"{aiResult.canonicalSuggestion}"</p>
+                                  <button style={S.useWordingBtn} onClick={() => setSubmitText(aiResult.canonicalSuggestion)}>Use this ↑</button>
+                                </div>
+                              </div>
+                            )}
+                            <button style={{ ...S.primaryBtn(false), width: "100%" }} onClick={() => submitNew(submitText)}>Submit as new question</button>
                           </div>
                         )}
                       </div>
