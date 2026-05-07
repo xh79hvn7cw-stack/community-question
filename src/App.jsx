@@ -78,26 +78,23 @@ Return ONLY valid JSON in this exact shape:
 Existing questions: QUESTIONS_PLACEHOLDER`;
 
 async function classifyQuestion(text) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch("/api/ai-check", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": import.meta.env.VITE_ANTHROPIC_KEY, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
-    body: JSON.stringify({ model: "claude-haiku-4-5", max_tokens: 200, system: CLASSIFY_PROMPT, messages: [{ role: "user", content: `Question: "${text}"` }] }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "classify", text }),
   });
-  const data = await res.json();
-  const raw = data.content?.find((b) => b.type === "text")?.text || "{}";
-  return JSON.parse(raw.replace(/```json|```/g, "").trim());
+  if (!res.ok) throw new Error("Classify failed");
+  return res.json();
 }
 
 async function checkSimilar(text, questions) {
-  const system = SIMILAR_PROMPT.replace("QUESTIONS_PLACEHOLDER", JSON.stringify(questions.map((q) => ({ id: q.id, text: q.text }))));
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch("/api/ai-check", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": import.meta.env.VITE_ANTHROPIC_KEY, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
-    body: JSON.stringify({ model: "claude-haiku-4-5", max_tokens: 800, system, messages: [{ role: "user", content: `New question: "${text}"` }] }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "similar", text, questions }),
   });
-  const data = await res.json();
-  const raw = data.content?.find((b) => b.type === "text")?.text || "{}";
-  return JSON.parse(raw.replace(/```json|```/g, "").trim());
+  if (!res.ok) throw new Error("Similar check failed");
+  return res.json();
 }
 
 // ── Styles ─────────────────────────────────────────────────────────────────
