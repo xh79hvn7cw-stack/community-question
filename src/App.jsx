@@ -209,6 +209,17 @@ const S = {
   errorText:  { fontSize: 13, color: "#888", lineHeight: 1.6 },
   loadingBox: { background: "rgba(255,59,59,0.04)", border: "1px solid rgba(255,59,59,0.15)", padding: "24px 20px", marginTop: 12, textAlign: "center" },
   useWordingBtn: { background: "rgba(255,59,59,0.08)", border: "1px solid rgba(255,59,59,0.2)", borderRadius: 0, padding: "6px 12px", fontSize: 11, fontWeight: 700, color: R, cursor: "pointer", fontFamily: "'Space Mono', monospace", textTransform: "uppercase", letterSpacing: "0.04em", marginLeft: 8, whiteSpace: "nowrap" },
+  docWrap: { maxWidth: 720, margin: "0 auto", padding: "32px 24px 80px", color: "#D1D5DB", lineHeight: 1.7 },
+  docH1: { fontFamily: "'Space Grotesk', sans-serif", fontSize: 32, fontWeight: 700, color: "#fff", marginBottom: 8 },
+  docH2: { fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, color: "#fff", marginTop: 32, marginBottom: 12 },
+  docP: { fontSize: 15, marginBottom: 14, color: "#9CA3AF" },
+  docMeta: { fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#6B7280", marginBottom: 32, letterSpacing: "0.04em" },
+  docList: { fontSize: 15, color: "#9CA3AF", marginBottom: 14, paddingLeft: 24 },
+  docLink: { color: "#FF3B3B", textDecoration: "underline", cursor: "pointer" },
+  footer: { borderTop: "1px solid rgba(255,255,255,0.08)", marginTop: 80, padding: "32px 24px", display: "flex", justifyContent: "center", gap: 24, flexWrap: "wrap" },
+  footerLink: { fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#6B7280", letterSpacing: "0.04em", cursor: "pointer", background: "none", border: "none", padding: 0 },
+  cookieBanner: { position: "fixed", bottom: 16, left: 16, right: 16, maxWidth: 640, margin: "0 auto", background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", padding: "16px 20px", display: "flex", alignItems: "center", gap: 16, zIndex: 1000, fontSize: 13, color: "#D1D5DB" },
+  cookieBtn: { background: "#FF3B3B", color: "#fff", border: "none", padding: "8px 16px", fontSize: 12, fontFamily: "'Space Mono', monospace", letterSpacing: "0.04em", cursor: "pointer", whiteSpace: "nowrap" },
 };
 
 // ── Main App ───────────────────────────────────────────────────────────────
@@ -242,6 +253,7 @@ export default function App() {
   const [pledgeConstituency, setPledgeConstituency] = useState("");
   const [pledgeSubmitting, setPledgeSubmitting]     = useState(false);
   const [pledgeSuccess, setPledgeSuccess]           = useState(false);
+  const [cookieAccepted, setCookieAccepted] = useState(() => localStorage.getItem("cq_cookie_accepted") === "true");
   const wrapRef = useRef(null);
 
   useEffect(() => { loadData(); }, []);
@@ -498,7 +510,12 @@ export default function App() {
                       <div><div style={S.topVal(false)}>{topQuestion.votes.toLocaleString()}</div><div style={S.topLbl}>voices</div></div>
                       <div><div style={S.topVal(true)}>{topQuestion.daysUnanswered}</div><div style={S.topLbl}>days ignored</div></div>
                       <div><div style={S.topVal(true)}>{topQuestion.timesDeflected}×</div><div style={S.topLbl}>dodged</div></div>
-                    </div>
+                    </div>{topQuestion.mp_champion_name && (
+  <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", gap: 8, fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#22C55E", letterSpacing: "0.04em" }}>
+    <span>✓</span>
+    <span>CLAIMED BY {topQuestion.mp_champion_name.toUpperCase()}{topQuestion.mp_champion_party ? ` (${topQuestion.mp_champion_party.toUpperCase()})` : ""}</span>
+  </div>
+)}
                   </div>
                 )}
 
@@ -519,7 +536,7 @@ export default function App() {
 
                 <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", marginTop: 32, paddingTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                   <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#333" }}>// communityquestion.uk</span>
-                  <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: R }}>No more dark corners. Nowhere left to hide.</span>
+              
                 </div>
               </div>
             )}
@@ -732,6 +749,167 @@ export default function App() {
                     )}
                   </div>
                 )}
+              </div>
+            )}
+            {/* ── PRIVACY POLICY ─────────────────────────────────────── */}
+            {view === "privacy" && (
+              <div style={S.page}>
+                <button style={S.back} onClick={() => { setView("home"); window.history.pushState({}, "", "/"); window.scrollTo(0, 0); }}>← Back</button>
+                <div style={S.docWrap}>
+                  <h1 style={S.docH1}>Privacy Policy</h1>
+                  <p style={S.docMeta}>Last updated: 7 May 2026</p>
+
+                  <h2 style={S.docH2}>1. Who we are</h2>
+                  <p style={S.docP}>Community Question is a UK political accountability platform that aggregates questions directed at politicians and tracks whether those questions have been answered.</p>
+                  <p style={S.docP}>Community Question is operated by Lou Quinn as an individual. For the purposes of UK GDPR and the Data Protection Act 2018, the data controller is:</p>
+                  <p style={S.docP}>Lou Quinn<br />11-13 Penhill Road<br />Cardiff<br />CF11 9UP</p>
+                  <p style={S.docP}>Contact: privacy@communityquestion.uk</p>
+
+                  <h2 style={S.docH2}>2. What data we collect</h2>
+                  <p style={S.docP}>We collect the minimum data needed to operate the platform.</p>
+                  <p style={S.docP}>When you visit the site, we automatically generate an anonymous session identifier and store it in your browser's local storage. This session identifier is not linked to your name, email, or any identifying information. It exists only so that we can record which questions you have voted on or submitted, and prevent duplicate voting.</p>
+                  <p style={S.docP}>When you submit a question, we record the text of your question, the topic tag, and the date and time of submission, alongside your anonymous session identifier.</p>
+                  <p style={S.docP}>When you vote on a question, we record your anonymous session identifier and the question you voted on.</p>
+                  <p style={S.docP}>We do not collect your name, email address, IP address (beyond what our hosting providers automatically log for security purposes), location, or any other personally identifying information.</p>
+                  <p style={S.docP}>We do not use cookies for tracking, advertising, or analytics. The only client-side storage we use is the anonymous session identifier described above.</p>
+
+                  <h2 style={S.docH2}>3. How we use your data</h2>
+                  <p style={S.docP}>We use the data we collect solely to operate the platform: to display questions, count votes accurately, prevent duplicate voting, and show you which questions you have already engaged with.</p>
+                  <p style={S.docP}>The text of submitted questions is published publicly on the platform. By submitting a question, you agree that the text of your question may be displayed publicly, indexed by search engines, and shared by other users.</p>
+                  <p style={S.docP}>We do not sell, rent, or share your data with third parties for marketing purposes. We do not profile users or build advertising profiles.</p>
+
+                  <h2 style={S.docH2}>4. Legal basis</h2>
+                  <p style={S.docP}>Our legal basis for processing data under UK GDPR is legitimate interest: the operation of a public-interest civic accountability platform requires a basic record of submissions and votes. This processing is minimal, anonymous, and proportionate to the purpose.</p>
+
+                  <h2 style={S.docH2}>5. How long we keep data</h2>
+                  <p style={S.docP}>Submitted questions, vote records, and deflection history are retained indefinitely as part of the public record of the platform. This is core to the platform's purpose: tracking how long questions have gone unanswered requires preserving the original submission date.</p>
+                  <p style={S.docP}>Anonymous session identifiers persist in your browser until you clear your browser data, or for as long as the corresponding records remain in our database.</p>
+
+                  <h2 style={S.docH2}>6. Third-party services</h2>
+                  <p style={S.docP}>We use the following third-party services to operate the platform:</p>
+                  <ul style={S.docList}>
+                    <li><a href="https://vercel.com/legal/privacy-policy" style={S.docLink} target="_blank" rel="noopener noreferrer">Vercel (hosting)</a></li>
+                    <li><a href="https://supabase.com/privacy" style={S.docLink} target="_blank" rel="noopener noreferrer">Supabase (database)</a></li>
+                    <li><a href="https://www.anthropic.com/legal/privacy" style={S.docLink} target="_blank" rel="noopener noreferrer">Anthropic (AI duplicate detection)</a></li>
+                    <li><a href="https://www.namecheap.com/legal/general/privacy-policy/" style={S.docLink} target="_blank" rel="noopener noreferrer">Namecheap (domain registration)</a></li>
+                  </ul>
+                  <p style={S.docP}>These providers may process data on our behalf as part of delivering their services. They are bound by their own privacy policies and applicable data protection law.</p>
+                  <p style={S.docP}>When you submit a question, the text of your question is sent to Anthropic's Claude AI for the purpose of detecting duplicate questions. Anthropic does not use this data to train their models. The submitted text is processed in the moment and not stored by Anthropic for any purpose beyond serving the immediate request.</p>
+
+                  <h2 style={S.docH2}>7. Your rights</h2>
+                  <p style={S.docP}>Under UK GDPR you have the right to:</p>
+                  <ul style={S.docList}>
+                    <li>Access the data we hold about you</li>
+                    <li>Request correction of inaccurate data</li>
+                    <li>Request deletion of your data</li>
+                    <li>Object to processing</li>
+                    <li>Lodge a complaint with the Information Commissioner's Office (ICO) at <a href="https://ico.org.uk" style={S.docLink} target="_blank" rel="noopener noreferrer">ico.org.uk</a></li>
+                  </ul>
+                  <p style={S.docP}>Because we do not collect identifying information, exercising some of these rights may require you to provide us with the session identifier from your browser, which acts as the only link between you and your activity on the platform.</p>
+                  <p style={S.docP}>To exercise any of these rights, contact us at privacy@communityquestion.uk.</p>
+
+                  <h2 style={S.docH2}>8. Changes to this policy</h2>
+                  <p style={S.docP}>We may update this policy from time to time. The "last updated" date at the top of this page will reflect when changes were made. Material changes will be communicated by a notice on the site.</p>
+
+                  <h2 style={S.docH2}>9. Complaints</h2>
+                  <p style={S.docP}>If you have concerns about how your data is being handled and we have not been able to resolve them, you have the right to lodge a complaint with the UK's data protection regulator:</p>
+                  <p style={S.docP}>Information Commissioner's Office<br />Wycliffe House, Water Lane<br />Wilmslow, Cheshire SK9 5AF<br /><a href="https://ico.org.uk" style={S.docLink} target="_blank" rel="noopener noreferrer">ico.org.uk</a></p>
+                </div>
+              </div>
+            )}
+
+            {/* ── TERMS OF USE ───────────────────────────────────────── */}
+            {view === "terms" && (
+              <div style={S.page}>
+                <button style={S.back} onClick={() => { setView("home"); window.history.pushState({}, "", "/"); window.scrollTo(0, 0); }}>← Back</button>
+                <div style={S.docWrap}>
+                  <h1 style={S.docH1}>Terms of Use</h1>
+                  <p style={S.docMeta}>Last updated: 7 May 2026</p>
+
+                  <h2 style={S.docH2}>1. About Community Question</h2>
+                  <p style={S.docP}>Community Question is a public-interest civic accountability platform operated by Lou Quinn. It allows members of the public to submit questions directed at UK politicians, vote on existing questions, and track which questions have been answered or evaded.</p>
+                  <p style={S.docP}>By using this site, you agree to these Terms of Use. If you do not agree, please do not use the platform.</p>
+
+                  <h2 style={S.docH2}>2. Use of the platform</h2>
+                  <p style={S.docP}>You may use Community Question to submit, view, and vote on questions directed at UK politicians and public officials.</p>
+                  <p style={S.docP}>By submitting a question, you confirm that:</p>
+                  <ul style={S.docList}>
+                    <li>The question is genuine and relates to a matter of public interest, public policy, or the conduct of a politician or public official in their public role.</li>
+                    <li>The question is your own work or you have the right to submit it.</li>
+                    <li>The question does not contain unlawful, defamatory, harassing, threatening, obscene, or grossly offensive content.</li>
+                    <li>The question does not contain private or confidential information about any individual, including private citizens or the family members of politicians.</li>
+                    <li>You understand and accept that submitted questions are published publicly and may be shared, indexed, and quoted by others.</li>
+                  </ul>
+
+                  <h2 style={S.docH2}>3. Content we will not accept</h2>
+                  <p style={S.docP}>We reserve the right to remove or refuse to publish any submission that:</p>
+                  <ul style={S.docList}>
+                    <li>Targets private individuals rather than public figures acting in a public role.</li>
+                    <li>Contains personal attacks, abuse, or harassment.</li>
+                    <li>Contains false statements of fact about identifiable individuals.</li>
+                    <li>Promotes violence, discrimination, or unlawful activity.</li>
+                    <li>Is spam, repetitive, or submitted in bad faith.</li>
+                    <li>Is incoherent, abusive, or otherwise fails the basic quality standards applied at submission.</li>
+                  </ul>
+                  <p style={S.docP}>We use AI-assisted moderation at submission to flag potential issues, and we reserve the right to review and remove any submission at any time.</p>
+
+                  <h2 style={S.docH2}>4. Politicians and public figures</h2>
+                  <p style={S.docP}>This platform discusses the conduct of politicians and public officials in their public roles. Comment, criticism, and accountability of public figures acting in public roles is a recognised matter of public interest.</p>
+                  <p style={S.docP}>We make every effort to ensure that questions and any associated information about politicians are accurate. If you are a politician or public official mentioned on the platform and believe information about you is inaccurate, please contact privacy@communityquestion.uk and we will review the matter promptly.</p>
+
+                  <h2 style={S.docH2}>5. MP champion feature</h2>
+                  <p style={S.docP}>The MP Champion feature allows Members of Parliament to publicly pledge to ask a question on behalf of the community. Any MP who claims a question via the platform agrees that their name, party, constituency, and pledge date may be displayed publicly on the platform.</p>
+
+                  <h2 style={S.docH2}>6. Intellectual property</h2>
+                  <p style={S.docP}>The Community Question name, design, and underlying code are the property of Lou Quinn. The text of user-submitted questions remains the intellectual property of the user, but by submitting a question you grant us a non-exclusive, royalty-free, worldwide licence to display, reproduce, share, and archive the question as part of the platform's operation.</p>
+
+                  <h2 style={S.docH2}>7. Limitation of liability</h2>
+                  <p style={S.docP}>Community Question is provided on an "as is" basis. We make no warranties about the accuracy or availability of the platform.</p>
+                  <p style={S.docP}>To the maximum extent permitted by law, we are not liable for any loss or damage arising from your use of the platform, including but not limited to loss of data, loss of opportunity, or reputational harm.</p>
+                  <p style={S.docP}>Nothing in these terms limits our liability for matters that cannot be limited by law, including death or personal injury caused by negligence, or fraud.</p>
+
+                  <h2 style={S.docH2}>8. Changes to these terms</h2>
+                  <p style={S.docP}>We may update these terms from time to time. The "last updated" date at the top of this page will reflect when changes were made. Continued use of the platform after changes constitutes acceptance of the updated terms.</p>
+
+                  <h2 style={S.docH2}>9. Governing law</h2>
+                  <p style={S.docP}>These terms are governed by the laws of England and Wales. Any disputes will be subject to the exclusive jurisdiction of the courts of England and Wales.</p>
+
+                  <h2 style={S.docH2}>10. Contact</h2>
+                  <p style={S.docP}>For any questions about these Terms of Use, contact privacy@communityquestion.uk.</p>
+                </div>
+              </div>
+            )}
+
+            {/* ── COOKIE NOTICE ──────────────────────────────────────── */}
+            {view === "cookies" && (
+              <div style={S.page}>
+                <button style={S.back} onClick={() => { setView("home"); window.history.pushState({}, "", "/"); window.scrollTo(0, 0); }}>← Back</button>
+                <div style={S.docWrap}>
+                  <h1 style={S.docH1}>Cookie & Storage Notice</h1>
+                  <p style={S.docMeta}>Last updated: 7 May 2026</p>
+
+                  <p style={S.docP}>Community Question does not use cookies for tracking, advertising, or analytics.</p>
+                  <p style={S.docP}>The only client-side storage we use is a single anonymous session identifier stored in your browser's local storage. This identifier is not linked to your name, email, or any identifying information. It exists solely to allow the platform to record which questions you have voted on or submitted, and to prevent duplicate voting.</p>
+                  <p style={S.docP}>This storage is considered "strictly necessary" for the operation of the platform under the Privacy and Electronic Communications Regulations (PECR). Without it, voting and submission features would not function correctly.</p>
+                  <p style={S.docP}>You may clear this identifier at any time by clearing your browser's local storage for this site. Doing so will not delete any questions you have submitted or votes you have cast — those remain in the public record of the platform — but it will sever the link between your current browser and those records.</p>
+                  <p style={S.docP}>We do not set any other cookies or storage on your device. We do not use Google Analytics, Facebook Pixel, or any other tracking technologies.</p>
+                  <p style={S.docP}>If you have questions about how data is handled, please see our <a style={S.docLink} onClick={(e) => { e.preventDefault(); setView("privacy"); window.history.pushState({}, "", "/privacy"); window.scrollTo(0, 0); }} href="/privacy">Privacy Policy</a> or contact us at privacy@communityquestion.uk.</p>
+                </div>
+              </div>
+            )}
+
+            {/* ── FOOTER (always visible) ────────────────────────────── */}
+            <footer style={S.footer}>
+              <button style={S.footerLink} onClick={() => { setView("privacy"); window.history.pushState({}, "", "/privacy"); window.scrollTo(0, 0); }}>// Privacy</button>
+              <button style={S.footerLink} onClick={() => { setView("terms"); window.history.pushState({}, "", "/terms"); window.scrollTo(0, 0); }}>// Terms</button>
+              <button style={S.footerLink} onClick={() => { setView("cookies"); window.history.pushState({}, "", "/cookies"); window.scrollTo(0, 0); }}>// Cookies</button>
+            </footer>
+
+            {/* ── COOKIE BANNER (first visit only) ───────────────────── */}
+            {!cookieAccepted && (
+              <div style={S.cookieBanner}>
+                <span>This site uses a single anonymous identifier in your browser's local storage to make voting work. No tracking, no analytics. <a style={S.docLink} onClick={(e) => { e.preventDefault(); setView("cookies"); window.history.pushState({}, "", "/cookies"); window.scrollTo(0, 0); }} href="/cookies">Learn more</a>.</span>
+                <button style={S.cookieBtn} onClick={() => { localStorage.setItem("cq_cookie_accepted", "true"); setCookieAccepted(true); }}>OK</button>
               </div>
             )}
           </>
