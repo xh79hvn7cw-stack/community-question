@@ -21,7 +21,6 @@ const getUrlQuestionId = () => {
 };
 
 const TAGS = ["all", "welfare", "NHS", "accountability", "pensioners", "immigration", "justice", "environment"];
-const PARTIES = ["Labour", "Conservative", "Liberal Democrats", "SNP", "Reform UK", "Green", "Plaid Cymru", "Other"];
 
 // Short word whitelist — important terms under 5 chars
 const SHORT_WORDS = new Set(["nhs","mps","gps","tax","law","cut","cuts","pay","war","aid","ban","fee","pip","dwp","esa","uc","pm","mp","gp","eu","un","net","vat","hmrc","gdp","ppe","pfi"]);
@@ -247,13 +246,7 @@ export default function App() {
   const [autoChecked, setAutoChecked]   = useState(false);
   const [shareSuccess, setShareSuccess] = useState(false);
   const [copySuccess, setCopySuccess]   = useState(false);
-  const [showPledgeForm, setShowPledgeForm]         = useState(false);
-  const [pledgeName, setPledgeName]                 = useState("");
-  const [pledgeParty, setPledgeParty]               = useState("");
-  const [pledgeConstituency, setPledgeConstituency] = useState("");
-  const [pledgeSubmitting, setPledgeSubmitting]     = useState(false);
-  const [pledgeSuccess, setPledgeSuccess]           = useState(false);
-  const [cookieAccepted, setCookieAccepted] = useState(() => localStorage.getItem("cq_cookie_accepted") === "true");
+    const [cookieAccepted, setCookieAccepted] = useState(() => localStorage.getItem("cq_cookie_accepted") === "true");
   const wrapRef = useRef(null);
 
   useEffect(() => { loadData(); }, []);
@@ -295,28 +288,7 @@ export default function App() {
     await supabase.from("deflections").insert({ question_id: qid, event_date: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }), event_type: "reported", note: "Reported by a community member as potentially inappropriate" });
   };
 
-  const handlePledge = async () => {
-    if (!pledgeName.trim() || !pledgeParty || !pledgeConstituency.trim()) return;
-    setPledgeSubmitting(true);
-    const { error } = await supabase.from("questions").update({
-      mp_champion_name: pledgeName.trim(), mp_champion_party: pledgeParty,
-      mp_champion_constituency: pledgeConstituency.trim(), mp_champion_pledged_at: new Date().toISOString(),
-    }).eq("id", selectedQId);
-    if (!error) {
-      await supabase.from("deflections").insert({
-        question_id: selectedQId,
-        event_date: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
-        event_type: "champion",
-        note: `${pledgeName.trim()} MP (${pledgeParty}) pledged to raise this question at PMQs`,
-      });
-      await loadData();
-      setPledgeSuccess(true); setShowPledgeForm(false);
-      setPledgeName(""); setPledgeParty(""); setPledgeConstituency("");
-    }
-    setPledgeSubmitting(false);
-  };
-
-  // Share — copy direct question URL to clipboard
+    // Share — copy direct question URL to clipboard
   const handleShare = (qid) => {
     const url = `${window.location.origin}?q=${qid}`;
     navigator.clipboard.writeText(url);
@@ -409,8 +381,7 @@ export default function App() {
   };
 
   const openQuestion = (qid) => {
-    setSelectedQId(qid); setView("question");
-    setPledgeSuccess(false); setShowPledgeForm(false);
+    setSelectedQId(qid); setView("question");S
     window.history.pushState({}, "", `?q=${qid}`);
   };
 
@@ -581,35 +552,12 @@ export default function App() {
                       {copySuccess ? "✓ Link copied!" : "// Copy link to share"}
                     </button>
                   </div>
-                ) : pledgeSuccess ? (
-                  <div style={{ ...S.championBox, marginBottom: 2 }}>
-                    <div style={S.championLabel}><span style={{ color: G }}>★</span> Pledge received</div>
-                    <p style={{ fontSize: 13, color: "#888", marginBottom: 12 }}>Thank you. Your pledge has been recorded.</p>
-                    <button style={S.copyLinkBtn(copySuccess)} onClick={() => handleCopyLink(selectedQ.id)}>
-                      {copySuccess ? "✓ Link copied!" : "// Copy link to share with your followers"}
-                    </button>
-                  </div>
                 ) : (
                   <div style={S.pledgeBox}>
-                    <p style={S.pledgeTitle}>// Are you an MP? Champion this question.</p>
-                    <p style={S.pledgeSub}>{selectedQ.votes.toLocaleString()} people want this answered. Pledge to raise it at PMQs and your name appears on this question — publicly, permanently.</p>
-                    {!showPledgeForm ? (
-                      <button style={S.pledgeBtn(false)} onClick={() => setShowPledgeForm(true)}>I'm an MP — I'll raise this →</button>
-                    ) : (
-                      <>
-                        <input style={S.input} placeholder="Full name (e.g. Sarah Olney)" value={pledgeName} onChange={(e) => setPledgeName(e.target.value)} />
-                        <select style={S.select2} value={pledgeParty} onChange={(e) => setPledgeParty(e.target.value)}>
-                          <option value="">Select your party</option>
-                          {PARTIES.map((p) => <option key={p} value={p}>{p}</option>)}
-                        </select>
-                        <input style={S.input} placeholder="Constituency" value={pledgeConstituency} onChange={(e) => setPledgeConstituency(e.target.value)} />
-                        <button style={S.pledgeBtn(!pledgeName.trim() || !pledgeParty || !pledgeConstituency.trim() || pledgeSubmitting)} onClick={handlePledge} disabled={!pledgeName.trim() || !pledgeParty || !pledgeConstituency.trim() || pledgeSubmitting}>
-                          {pledgeSubmitting ? <><span style={S.spinner} />Submitting…</> : "Confirm pledge →"}
-                        </button>
-                        <button style={{ ...S.backBtn, marginTop: 10, marginBottom: 0 }} onClick={() => setShowPledgeForm(false)}>Cancel</button>
-                      </>
-                    )}
-                  </div>
+  <p style={S.pledgeTitle}>// Are you an MP? Champion this question.</p>
+  <p style={S.pledgeSub}>{selectedQ.votes.toLocaleString()} people want this answered. Pledge to raise it at PMQs and your name appears on this page as the MP who took it forward.</p>
+  <p style={{ ...S.pledgeSub, marginTop: 16, color: "#9CA3AF" }}>To pledge, email <a href="mailto:champions@communityquestion.uk" style={{ color: "#FF3B3B", textDecoration: "underline" }}>champions@communityquestion.uk</a> from your Parliamentary email address. We'll add your pledge within 24 hours.</p>
+</div>
                 )}
 
                 <div style={S.nextPmqs}>
