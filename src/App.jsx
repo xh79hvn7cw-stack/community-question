@@ -374,11 +374,15 @@ export default function App() {
   };
 
   const goHome = () => {
-    setView("home"); setSubmitted(false); setPledgeSuccess(false);
-    setShowPledgeForm(false); setCopySuccess(false); setShareSuccess(false);
-    setSubmittedQId(null);
-    window.history.pushState({}, "", window.location.pathname);
-  };
+  setView("home");
+  setSelectedQId(null);
+  setSubmitted(false);
+  setCopySuccess(false);
+  setShareSuccess(false);
+  setSubmittedQId(null);
+  window.history.pushState({}, "", "/");
+  window.scrollTo(0, 0);
+};
 
   const openQuestion = (qid) => {
     setSelectedQId(qid); setView("question");S
