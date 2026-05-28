@@ -1,15 +1,15 @@
-// Vercel serverless function — proxies Grok (xAI) calls
+// Vercel serverless function — Grok (xAI) proxy
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Origin check
   const origin = req.headers.origin || "";
   const allowed = [
     "https://communityquestion.uk",
     "https://www.communityquestion.uk",
     "http://localhost:5173",
+    "https://community-question.vercel.app"
   ];
   if (!allowed.some((a) => origin.startsWith(a))) {
     return res.status(403).json({ error: "Forbidden origin" });
@@ -29,16 +29,24 @@ export default async function handler(req, res) {
   let systemPrompt, userPrompt, maxTokens = 1200;
 
   if (mode === "classify") {
-    systemPrompt = `You are helping a UK civic accountability platform called "Community Question".
-Return ONLY valid JSON with no extra text.
+    systemPrompt = `You are helping "Community Question" - a UK platform that aggregates public questions to the Prime Minister.
+
+Task: Determine if this is a valid question for the Prime Minister / UK Government.
+
+Return ONLY valid JSON:
 
 {
-  "tag": "one of: welfare, nhs, accountability, pensioners, immigration, justice, environment, housing, education, economy, transport, defence, general",
-  "quality": "pass" or "fail"
+  "tag": "one of: welfare, nhs, accountability, pensioners, immigration, justice, environment, housing, education, economy, transport, defence, politics, general",
+  "quality": "pass" or "fail",
+  "reason": "short reason only if failed"
 }
 
-A question passes only if it is a genuine, coherent question relevant to UK government policy or the Prime Minister. Fail abusive, spam, or off-topic content.`;
-    
+Rules:
+- Pass any coherent political, policy, or societal question directed at the government/PM
+- Political, ideological, and controversial questions are ALLOWED (e.g. far right, immigration, free speech, wokeness, etc.)
+- Questions asking for definitions or clarifications are valid
+- Only FAIL if it's spam, clear abuse, personal attack, nonsense, or completely off-topic (not related to UK governance/politics)`;
+
     userPrompt = `Question: "${text}"`;
 
   } else if (mode === "similar") {
@@ -46,7 +54,6 @@ A question passes only if it is a genuine, coherent question relevant to UK gove
       return res.status(400).json({ error: "Missing questions array" });
     }
 
-    // Limit to top 12 for cost + performance
     const limitedQuestions = questions.slice(0, 12);
     const questionList = JSON.stringify(
       limitedQuestions.map((q) => ({ id: q.id, text: q.text }))
@@ -54,22 +61,20 @@ A question passes only if it is a genuine, coherent question relevant to UK gove
 
     systemPrompt = `You are helping "Community Question" - a UK platform that aggregates public questions to the Prime Minister.
 
-Task: Identify which existing questions are asking the **same underlying thing** as the new question.
-A single honest answer from the Prime Minister should satisfy all merged questions.
+Task: Find which existing questions are asking the **same core thing**.
 
-Rules:
-- Be strict. Only merge if the core ask is nearly identical.
-- Same topic but different specifics = DIFFERENT.
-- Different "why/how/who/when" = DIFFERENT.
-- When in doubt, do NOT merge.
+A single honest answer from the Prime Minister should reasonably address all merged questions.
+
+Be reasonable but not too loose.
 
 Return ONLY valid JSON:
+
 {
   "similar": [
-    {"id": number, "reason": "one short sentence why they are the same"}
+    {"id": number, "reason": "one short sentence explaining the similarity"}
   ],
   "isDistinct": boolean,
-  "canonicalSuggestion": "short suggested main question (null if not needed)"
+  "canonicalSuggestion": "short improved main question if needed, otherwise null"
 }`;
 
     userPrompt = `New question: "${text}"
@@ -91,7 +96,7 @@ ${questionList}`;
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: 0.1,
+        temperature: 0.15,
         max_tokens: maxTokens,
         response_format: { type: "json_object" }
       }),
@@ -100,7 +105,7 @@ ${questionList}`;
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Grok API error:", errorText);
-      return res.status(502).json({ error: "AI service error" });
+      return res.status(502).json({ error: "AI service temporarily unavailable" });
     }
 
     const data = await response.json();
@@ -110,8 +115,8 @@ ${questionList}`;
     try {
       parsed = JSON.parse(aiResponse);
     } catch (e) {
-      console.error("Failed to parse JSON from Grok");
-      return res.status(502).json({ error: "Invalid AI response" });
+      console.error("JSON parse error from Grok");
+      return res.status(502).json({ error: "Invalid AI response format" });
     }
 
     return res.status(200).json(parsed);
