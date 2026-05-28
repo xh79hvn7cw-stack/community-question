@@ -26,12 +26,10 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "AI service not configured" });
   }
 
-  let systemPrompt, userPrompt, maxTokens = 1200;
+  let systemPrompt, userPrompt, maxTokens = 1300;
 
   if (mode === "classify") {
     systemPrompt = `You are helping "Community Question" - a UK platform that aggregates public questions to the Prime Minister.
-
-Task: Determine if this is a valid question for the Prime Minister / UK Government.
 
 Return ONLY valid JSON:
 
@@ -41,45 +39,45 @@ Return ONLY valid JSON:
   "reason": "short reason only if failed"
 }
 
-Rules:
-- Pass any coherent political, policy, or societal question directed at the government/PM
-- Political, ideological, and controversial questions are ALLOWED (e.g. far right, immigration, free speech, wokeness, etc.)
-- Questions asking for definitions or clarifications are valid
-- Only FAIL if it's spam, clear abuse, personal attack, nonsense, or completely off-topic (not related to UK governance/politics)`;
+Be reasonable. Pass coherent political, policy, and societal questions. Controversial or ideological questions are allowed.`;
 
     userPrompt = `Question: "${text}"`;
 
   } else if (mode === "similar") {
-    if (!Array.isArray(questions) || questions.length === 0) {
-      return res.status(400).json({ error: "Missing questions array" });
-    }
-
-    const limitedQuestions = questions.slice(0, 12);
+    const limitedQuestions = questions.slice(0, 10); // Reduced to top 10
     const questionList = JSON.stringify(
-      limitedQuestions.map((q) => ({ id: q.id, text: q.text }))
+      limitedQuestions.map((q) => ({ 
+        id: q.id, 
+        text: q.text, 
+        votes: q.votes || 0 
+      }))
     );
 
-    systemPrompt = `You are helping "Community Question" - a UK platform that aggregates public questions to the Prime Minister.
+    systemPrompt = `You are helping "Community Question" - a UK platform aggregating questions to the Prime Minister.
 
-Task: Find which existing questions are asking the **same core thing**.
+Task: Find questions that ask the **same core thing**. 
 
-A single honest answer from the Prime Minister should reasonably address all merged questions.
+A single good answer from the PM should reasonably satisfy all merged questions.
 
-Be reasonable but not too loose.
+Guidelines:
+- Prioritise questions with higher votes
+- Same topic + similar intent = merge (even if wording differs)
+- Different specific demands = do not merge
+- Be practical, not overly pedantic
 
 Return ONLY valid JSON:
 
 {
   "similar": [
-    {"id": number, "reason": "one short sentence explaining the similarity"}
+    {"id": number, "reason": "one short sentence"}
   ],
   "isDistinct": boolean,
-  "canonicalSuggestion": "short improved main question if needed, otherwise null"
+  "canonicalSuggestion": "short clean main question (null if not needed)"
 }`;
 
     userPrompt = `New question: "${text}"
 
-Existing questions:
+Existing questions (with vote count):
 ${questionList}`;
   }
 
@@ -96,33 +94,22 @@ ${questionList}`;
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: 0.15,
+        temperature: 0.1,
         max_tokens: maxTokens,
         response_format: { type: "json_object" }
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Grok API error:", errorText);
-      return res.status(502).json({ error: "AI service temporarily unavailable" });
-    }
+    if (!response.ok) throw new Error("API error");
 
     const data = await response.json();
     const aiResponse = data.choices?.[0]?.message?.content;
-
-    let parsed;
-    try {
-      parsed = JSON.parse(aiResponse);
-    } catch (e) {
-      console.error("JSON parse error from Grok");
-      return res.status(502).json({ error: "Invalid AI response format" });
-    }
+    const parsed = JSON.parse(aiResponse);
 
     return res.status(200).json(parsed);
 
   } catch (error) {
-    console.error("AI handler error:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    console.error("AI error:", error);
+    return res.status(502).json({ error: "AI service error" });
   }
 }
