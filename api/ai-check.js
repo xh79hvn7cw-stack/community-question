@@ -26,25 +26,13 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "AI service not configured" });
   }
 
-  let systemPrompt, userPrompt, maxTokens = 1300;
+  let systemPrompt, userPrompt;
 
   if (mode === "classify") {
-    systemPrompt = `You are helping "Community Question" - a UK platform that aggregates public questions to the Prime Minister.
-
-Return ONLY valid JSON:
-
-{
-  "tag": "one of: welfare, nhs, accountability, pensioners, immigration, justice, environment, housing, education, economy, transport, defence, politics, general",
-  "quality": "pass" or "fail",
-  "reason": "short reason only if failed"
-}
-
-Be reasonable. Pass coherent political, policy, and societal questions. Controversial or ideological questions are allowed.`;
-
+    systemPrompt = `You are helping "Community Question". Return ONLY valid JSON.`;
     userPrompt = `Question: "${text}"`;
-
   } else if (mode === "similar") {
-    const limitedQuestions = questions.slice(0, 10); // Reduced to top 10
+    const limitedQuestions = questions.slice(0, 8);
     const questionList = JSON.stringify(
       limitedQuestions.map((q) => ({ 
         id: q.id, 
@@ -53,32 +41,34 @@ Be reasonable. Pass coherent political, policy, and societal questions. Controve
       }))
     );
 
-    systemPrompt = `You are helping "Community Question" - a UK platform aggregating questions to the Prime Minister.
+    systemPrompt = `You are an expert at detecting duplicate public questions for a UK civic platform.
 
-Task: Find questions that ask the **same core thing**. 
+Task: Determine which existing questions are **essentially the same** as the new one.
 
-A single good answer from the PM should reasonably satisfy all merged questions.
+Core Rule: Would one clear, honest answer from the Prime Minister reasonably address both questions?
 
-Guidelines:
-- Prioritise questions with higher votes
-- Same topic + similar intent = merge (even if wording differs)
-- Different specific demands = do not merge
-- Be practical, not overly pedantic
+Be quite strict.
+
+- Same topic but different specific angle = NOT the same
+- Very similar intent + meaning = same
+- Prioritise high-vote questions
 
 Return ONLY valid JSON:
 
 {
   "similar": [
-    {"id": number, "reason": "one short sentence"}
+    {"id": number, "reason": "very short reason"}
   ],
   "isDistinct": boolean,
-  "canonicalSuggestion": "short clean main question (null if not needed)"
+  "canonicalSuggestion": "clean main version of the question or null"
 }`;
 
     userPrompt = `New question: "${text}"
 
-Existing questions (with vote count):
-${questionList}`;
+Existing questions:
+${questionList}
+
+Only return questions that are truly very similar.`;
   }
 
   try {
@@ -95,7 +85,7 @@ ${questionList}`;
           { role: "user", content: userPrompt }
         ],
         temperature: 0.1,
-        max_tokens: maxTokens,
+        max_tokens: 1000,
         response_format: { type: "json_object" }
       }),
     });
@@ -103,8 +93,7 @@ ${questionList}`;
     if (!response.ok) throw new Error("API error");
 
     const data = await response.json();
-    const aiResponse = data.choices?.[0]?.message?.content;
-    const parsed = JSON.parse(aiResponse);
+    const parsed = JSON.parse(data.choices[0].message.content);
 
     return res.status(200).json(parsed);
 
