@@ -387,14 +387,17 @@ export default function App() {
   const joinFromDrop = (qid) => { handleVote(qid, null); setShowDrop(false); setSubmitText(""); setSelectedQId(qid); setView("question"); };
 
   const onTextChange = (e) => {
-    const v = e.target.value;
-    setSubmitText(v);
-    if (aiResult) setAiResult(null);
-    if (qualityError) setQualityError("");
-    if (submitTag) setSubmitTag("");
-    setAutoChecked(false);
-    setShowDrop(v.trim().length >= 2);
-  };
+  const v = e.target.value;
+  setSubmitText(v);
+  
+  // Clear previous results
+  if (aiResult) setAiResult(null);
+  if (qualityError) setQualityError("");
+  if (submitTag) setSubmitTag("");
+  
+  setShowDrop(false);           // ← Disable real-time dropdown
+  setAutoChecked(false);
+};
 
   const goHome = () => {
   setView("home");
@@ -429,7 +432,6 @@ export default function App() {
   const totalUnanswered = questions.filter((q) => q.status === "unanswered").length;
   const totalDeflected  = questions.reduce((s, q) => s + (q.timesDeflected || 0), 0);
   const pmqsDate      = nextPMQs();
-  const matches       = getMatches(submitText);
   const selectedQ     = questions.find((x) => x.id === selectedQId);
   const hasChampion   = selectedQ?.mp_champion_name;
 
@@ -667,9 +669,13 @@ export default function App() {
                     </div>
 
                     {!autoChecked && (
-                      <button style={{ ...S.primaryBtn(submitText.trim().length < 20 || aiLoading), width: "100%" }} onClick={runAiCheck} disabled={submitText.trim().length < 20 || aiLoading}>
-                        {aiLoading ? <><span style={S.spinner} />Checking question…</> : "Check for similar questions →"}
-                      </button>
+                      <button 
+  style={{ ... }}
+  onClick={runAiCheck}
+  disabled={submitText.trim().length < 20 || aiLoading}
+>
+  {aiLoading ? "🔍 Checking..." : "CHECK FOR SIMILAR QUESTIONS →"}
+</button>
                     )}
 
                     {aiLoading && (
