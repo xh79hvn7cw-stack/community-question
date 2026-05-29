@@ -316,6 +316,8 @@ export default function App() {
   const runAiCheck = async () => {
   if (submitText.trim().length < 20) return;
 
+  console.log("runAiCheck called with:", submitText);
+
   setAiLoading(true);
   setShowDrop(false);
   setAiResult(null);
@@ -332,26 +334,22 @@ export default function App() {
 
     if (classify.tag) setSubmitTag(classify.tag);
 
-    // === STRONG FILTERING FOR V1 ===
+    // === SIMPLE BUT EFFECTIVE FILTERING ===
     const sText = submitText.toLowerCase().trim();
-    const inputWords = sText.split(/\s+/).filter(w => w.length > 3);
+    const inputWords = sText.split(/\s+/).filter(w => w.length > 2);
 
     const filteredQuestions = questions
       .filter(q => {
         const qText = (q.text || "").toLowerCase();
-        const qVotes = q.votes || 0;
-
-        // Must have decent votes OR be very relevant
-        if (qVotes < 5 && !qText.includes("waiting")) return false;
-
-        // Must share important keywords
-        const matches = inputWords.filter(word => qText.includes(word));
         
-        return matches.length >= 2 || 
-               (matches.length >= 1 && (qText.includes("waiting") || qText.includes("nhs") && inputWords.includes("waiting")));
+        // Share at least one meaningful word
+        const matches = inputWords.filter(word => qText.includes(word));
+        return matches.length >= 1;
       })
       .sort((a, b) => (b.votes || 0) - (a.votes || 0))
-      .slice(0, 6);   // Max 6 candidates
+      .slice(0, 8);
+
+    console.log(`Sending ${filteredQuestions.length} questions to Grok`);
 
     const similar = await checkSimilar(submitText, filteredQuestions);
     setAiResult(similar);
