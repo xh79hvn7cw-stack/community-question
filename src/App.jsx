@@ -631,7 +631,7 @@ export default function App() {
                       </button>
                     </div>
                   </div>
-                ) : (
+                ) : 
                   <div style={S.submitCard}>
                     <label style={S.label}>Your question for Keir Starmer</label>
                     
