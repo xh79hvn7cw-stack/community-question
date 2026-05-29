@@ -332,23 +332,21 @@ export default function App() {
 
     if (classify.tag) setSubmitTag(classify.tag);
 
-    // === IMPROVED: Smart keyword filtering before sending to Grok ===
+    // === STRONGER FILTERING ===
+    const sText = submitText.toLowerCase();
+    const keyWords = sText.split(' ').filter(word => word.length > 4);
+
     const filteredQuestions = questions
       .filter(q => {
         const qText = (q.text || "").toLowerCase();
-        const sText = submitText.toLowerCase();
         
-        // Only include questions that share meaningful keywords
-        const sharedWords = sText.split(' ').filter(word => 
-          word.length > 3 && qText.includes(word)
-        );
+        // Must share at least 2 significant keywords
+        const matches = keyWords.filter(word => qText.includes(word));
         
-        return sharedWords.length >= 2 || 
-               qText.includes(sText) || 
-               sText.includes(qText);
+        return matches.length >= 2;
       })
-      .sort((a, b) => (b.votes || 0) - (a.votes || 0))   // High vote questions first
-      .slice(0, 10);  // Max 10 candidates
+      .sort((a, b) => (b.votes || 0) - (a.votes || 0))
+      .slice(0, 8);   // Even stricter limit
 
     const similar = await checkSimilar(submitText, filteredQuestions);
     setAiResult(similar);
