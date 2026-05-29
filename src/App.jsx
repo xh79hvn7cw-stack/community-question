@@ -314,21 +314,52 @@ export default function App() {
   };
 
   const runAiCheck = async () => {
-    if (submitText.trim().length < 20) return;
-    setAiLoading(true); setShowDrop(false); setAiResult(null); setQualityError("");
-    try {
-      const classify = await classifyQuestion(submitText);
-      if (classify.quality === "fail") {
-        setQualityError(classify.failReason || "This doesn't look like a valid question directed at the Prime Minister.");
-        setAiLoading(false);
-        return;
-      }
-      if (classify.tag) setSubmitTag(classify.tag);
-      const similar = await checkSimilar(submitText, questions);
-      setAiResult(similar);
-    } catch { setAiResult({ similar: [], isDistinct: true }); }
+  if (submitText.trim().length < 20) return;
+
+  setAiLoading(true);
+  setShowDrop(false);
+  setAiResult(null);
+  setQualityError("");
+
+  try {
+    const classify = await classifyQuestion(submitText);
+
+    if (classify.quality === "fail") {
+      setQualityError(classify.failReason || "This doesn't look like a valid question directed at the Prime Minister.");
+      setAiLoading(false);
+      return;
+    }
+
+    if (classify.tag) setSubmitTag(classify.tag);
+
+    // === IMPROVED: Smart keyword filtering before sending to Grok ===
+    const filteredQuestions = questions
+      .filter(q => {
+        const qText = (q.text || "").toLowerCase();
+        const sText = submitText.toLowerCase();
+        
+        // Only include questions that share meaningful keywords
+        const sharedWords = sText.split(' ').filter(word => 
+          word.length > 3 && qText.includes(word)
+        );
+        
+        return sharedWords.length >= 2 || 
+               qText.includes(sText) || 
+               sText.includes(qText);
+      })
+      .sort((a, b) => (b.votes || 0) - (a.votes || 0))   // High vote questions first
+      .slice(0, 10);  // Max 10 candidates
+
+    const similar = await checkSimilar(submitText, filteredQuestions);
+    setAiResult(similar);
+
+  } catch (err) {
+    console.error("AI Check error:", err);
+    setAiResult({ similar: [], isDistinct: true });
+  } finally {
     setAiLoading(false);
-  };
+  }
+};
 
   const submitNew = async (textToSubmit) => {
     const finalText = textToSubmit || submitText;
