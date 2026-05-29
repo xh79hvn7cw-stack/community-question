@@ -26,13 +26,29 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "AI service not configured" });
   }
 
-  let systemPrompt, userPrompt;
+  let systemPrompt, userPrompt, maxTokens = 1300;
 
   if (mode === "classify") {
-    systemPrompt = `You are helping "Community Question". Return ONLY valid JSON.`;
+    systemPrompt = `You are helping "Community Question" - a UK platform that aggregates public questions to the Prime Minister.
+
+Return ONLY valid JSON:
+
+{
+  "tag": "one of: welfare, nhs, accountability, pensioners, immigration, justice, environment, housing, education, economy, transport, defence, politics, general",
+  "quality": "pass" or "fail",
+  "reason": "short reason only if failed"
+}
+
+Be reasonable. Pass coherent political, policy, societal, and ideological questions.`;
+
     userPrompt = `Question: "${text}"`;
+
   } else if (mode === "similar") {
-    const limitedQuestions = questions.slice(0, 8);
+    if (!Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).json({ error: "Missing questions array" });
+    }
+
+    const limitedQuestions = questions.slice(0, 10);
     const questionList = JSON.stringify(
       limitedQuestions.map((q) => ({ 
         id: q.id, 
@@ -41,34 +57,31 @@ export default async function handler(req, res) {
       }))
     );
 
-    systemPrompt = `You are an expert at detecting duplicate public questions for a UK civic platform.
+    systemPrompt = `You are helping "Community Question" - a UK platform that aggregates thousands of public questions to the Prime Minister.
 
-Task: Determine which existing questions are **essentially the same** as the new one.
+Core Mission: Group questions that are asking the **same underlying thing**, even if worded differently.
 
-Core Rule: Would one clear, honest answer from the Prime Minister reasonably address both questions?
+A single good answer from the Prime Minister should satisfy all merged questions.
 
-Be quite strict.
-
-- Same topic but different specific angle = NOT the same
-- Very similar intent + meaning = same
+Be practical and reasonable:
+- Same core request / intent = merge
+- Different specific angle or demand = do not merge
 - Prioritise high-vote questions
 
 Return ONLY valid JSON:
 
 {
   "similar": [
-    {"id": number, "reason": "very short reason"}
+    {"id": number, "reason": "one short sentence explaining similarity"}
   ],
   "isDistinct": boolean,
-  "canonicalSuggestion": "clean main version of the question or null"
+  "canonicalSuggestion": "short clean main version of the question or null"
 }`;
 
     userPrompt = `New question: "${text}"
 
-Existing questions:
-${questionList}
-
-Only return questions that are truly very similar.`;
+Existing top questions:
+${questionList}`;
   }
 
   try {
@@ -84,21 +97,33 @@ Only return questions that are truly very similar.`;
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: 0.1,
-        max_tokens: 1000,
+        temperature: 0.15,
+        max_tokens: maxTokens,
         response_format: { type: "json_object" }
       }),
     });
 
-    if (!response.ok) throw new Error("API error");
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Grok API error:", errorText);
+      return res.status(502).json({ error: "AI service error" });
+    }
 
     const data = await response.json();
-    const parsed = JSON.parse(data.choices[0].message.content);
+    const aiResponse = data.choices?.[0]?.message?.content;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(aiResponse);
+    } catch (e) {
+      console.error("JSON parse error");
+      return res.status(502).json({ error: "Invalid AI response" });
+    }
 
     return res.status(200).json(parsed);
 
   } catch (error) {
-    console.error("AI error:", error);
-    return res.status(502).json({ error: "AI service error" });
+    console.error("AI handler error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 }

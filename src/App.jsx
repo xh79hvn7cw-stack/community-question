@@ -334,24 +334,14 @@ export default function App() {
 
     if (classify.tag) setSubmitTag(classify.tag);
 
-    // === SIMPLE BUT EFFECTIVE FILTERING ===
-    const sText = submitText.toLowerCase().trim();
-    const inputWords = sText.split(/\s+/).filter(w => w.length > 2);
-
-    const filteredQuestions = questions
-      .filter(q => {
-        const qText = (q.text || "").toLowerCase();
-        
-        // Share at least one meaningful word
-        const matches = inputWords.filter(word => qText.includes(word));
-        return matches.length >= 1;
-      })
+    // === SIMPLIFIED: Send top voted questions to Grok ===
+    const topQuestions = [...questions]
       .sort((a, b) => (b.votes || 0) - (a.votes || 0))
-      .slice(0, 8);
+      .slice(0, 10);
 
-    console.log(`Sending ${filteredQuestions.length} questions to Grok`);
+    console.log(`Sending top ${topQuestions.length} questions to Grok for similarity check`);
 
-    const similar = await checkSimilar(submitText, filteredQuestions);
+    const similar = await checkSimilar(submitText, topQuestions);
     setAiResult(similar);
 
   } catch (err) {
