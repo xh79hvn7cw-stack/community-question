@@ -332,24 +332,26 @@ export default function App() {
 
     if (classify.tag) setSubmitTag(classify.tag);
 
-    // === IMPROVED FILTERING ===
+    // === STRONG FILTERING FOR V1 ===
     const sText = submitText.toLowerCase().trim();
-    const keyWords = sText.split(/\s+/).filter(word => word.length > 2); // Lowered threshold
+    const inputWords = sText.split(/\s+/).filter(w => w.length > 3);
 
     const filteredQuestions = questions
       .filter(q => {
         const qText = (q.text || "").toLowerCase();
-        
-        if (keyWords.length === 0) return false;
+        const qVotes = q.votes || 0;
 
-        // Must share at least 1-2 significant keywords
-        const matches = keyWords.filter(word => qText.includes(word));
+        // Must have decent votes OR be very relevant
+        if (qVotes < 5 && !qText.includes("waiting")) return false;
+
+        // Must share important keywords
+        const matches = inputWords.filter(word => qText.includes(word));
         
-        return matches.length >= 1 && 
-               (matches.length >= 2 || keyWords.length <= 2); // Allow single strong keyword for short inputs
+        return matches.length >= 2 || 
+               (matches.length >= 1 && (qText.includes("waiting") || qText.includes("nhs") && inputWords.includes("waiting")));
       })
       .sort((a, b) => (b.votes || 0) - (a.votes || 0))
-      .slice(0, 8);
+      .slice(0, 6);   // Max 6 candidates
 
     const similar = await checkSimilar(submitText, filteredQuestions);
     setAiResult(similar);
