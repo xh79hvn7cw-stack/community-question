@@ -608,49 +608,54 @@ export default function App() {
               </div>
             )}
 
-            {/* ── SUBMIT ── */}
-  {view === "submit" && (
-  <div style={S.page}>
-    <button style={S.backBtn} onClick={() => { setView("home"); setSubmitted(false); setSubmitText(""); setAiResult(null); setQualityError(""); }}>
-      ← Back
-    </button>
+              {/* ── SUBMIT ── */}
+            {view === "submit" && (
+              <div style={S.page}>
+                <button style={S.backBtn} onClick={() => { setView("home"); setSubmitted(false); setSubmitText(""); setAiResult(null); setQualityError(""); }}>
+                  ← Back
+                </button>
 
-    <div style={{ borderLeft: `3px solid red`, paddingLeft: 20, marginBottom: 28 }}>
-      <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "red", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>
-        // ASK THE PRIME MINISTER A QUESTION
-      </div>
-      <p style={{ fontSize: 13, color: "#aaa", lineHeight: 1.7 }}>
-        Type your question below. If thousands of others are already asking the same thing, we'll find them and combine all your voices into one.
-      </p>
-    </div>
+                <div style={{ borderLeft: `3px solid red`, paddingLeft: 20, marginBottom: 28 }}>
+                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "red", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>
+                    // ASK THE PRIME MINISTER A QUESTION
+                  </div>
+                  <p style={{ fontSize: 13, color: "#aaa", lineHeight: 1.7 }}>
+                    Type your question below. If thousands of others are already asking the same thing, we'll find them and combine all your voices into one.
+                  </p>
+                </div>
 
-    <div style={S.submitCard}>
-      <label style={S.label}>Your question for Keir Starmer</label>
+                <div style={S.submitCard}>
+                  <label style={S.label}>Your question for Keir Starmer</label>
 
-      <textarea
-        style={S.textarea}
-        placeholder='e.g. "Will you scrap the two-child benefit cap — yes or no?"'
-        value={submitText}
-        onChange={onTextChange}
-        rows={4}
-      />
+                  <textarea
+                    style={S.textarea}
+                    placeholder='e.g. "Will you scrap the two-child benefit cap — yes or no?"'
+                    value={submitText}
+                    onChange={onTextChange}
+                    rows={4}
+                  />
 
-      <button 
-        style={S.primaryBtn}
-        onClick={runAiCheck}
-        disabled={submitText.trim().length < 20 || aiLoading}
-      >
-        {aiLoading ? "🔍 Checking for similar questions..." : "✅ CHECK FOR SIMILAR QUESTIONS →"}
-      </button>
+                  <button 
+                    style={S.primaryBtn}
+                    onClick={runAiCheck}
+                    disabled={submitText.trim().length < 20 || aiLoading}
+                  >
+                    {aiLoading ? "🔍 Checking for similar questions..." : "✅ CHECK FOR SIMILAR QUESTIONS →"}
+                  </button>
 
-      {qualityError && <div style={{color: "#ff6b6b", marginTop: "12px"}}>{qualityError}</div>}
+                  {qualityError && <div style={{color: "#ff6b6b", marginTop: "12px"}}>{qualityError}</div>}
 
-      <button onClick={() => submitNew(submitText)} style={{marginTop: 16, width: "100%", padding: "14px", background: "#ff4d4d", color: "white", border: "none", fontWeight: "bold"}}>
-        ➕ POST AS NEW QUESTION (TEMP BUTTON)
-      </button>
-    </div>
-  </div>
-)}
+                  {aiResult && (
+                    <div style={{marginTop: 16, padding: 12, background: "#222", borderRadius: 8}}>
+                      <pre style={{whiteSpace: "pre-wrap", fontSize: 13}}>{JSON.stringify(aiResult, null, 2)}</pre>
+                      <button onClick={() => submitNew(submitText)} style={{marginTop: 12, width: "100%", padding: "12px", background: "#ff4d4d", color: "#fff", border: "none"}}>
+                        ➕ POST AS NEW QUESTION
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             {/* ── PRIVACY POLICY ─────────────────────────────────────── */}
             {view === "privacy" && (
               <div style={S.page}>
