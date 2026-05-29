@@ -668,14 +668,16 @@ export default function App() {
                       )}
                     </div>
 
-         {/* Check for similar questions button */}
+         {/* TEMP DISABLED TO FIX BLANK SCREEN */}
+{/*
 <button 
   style={S.primaryBtn}
   onClick={runAiCheck}
   disabled={submitText.trim().length < 20 || aiLoading}
 >
-  {aiLoading ? "🔍 Checking for similar questions..." : "CHECK FOR SIMILAR QUESTIONS →"}
+  {aiLoading ? "🔍 Checking..." : "CHECK FOR SIMILAR QUESTIONS →"}
 </button>
+*/}
                   
                     {aiLoading && (
                       <div style={S.loadingBox}>
