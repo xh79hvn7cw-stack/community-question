@@ -26,7 +26,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "AI service not configured" });
   }
 
-  let systemPrompt, userPrompt, maxTokens = 1300;
+  let systemPrompt, userPrompt;
 
   if (mode === "classify") {
     systemPrompt = `You are helping "Community Question" - a UK platform that aggregates public questions to the Prime Minister.
@@ -39,7 +39,10 @@ Return ONLY valid JSON:
   "reason": "short reason only if failed"
 }
 
-Be reasonable. Pass coherent political, policy, societal, and ideological questions.`;
+Rules:
+- Pass coherent questions about UK politics, government policy, or society
+- Fail only if it's clear hate speech, personal abuse, spam, or complete gibberish
+- Political and controversial questions are allowed`;
 
     userPrompt = `Question: "${text}"`;
 
@@ -57,30 +60,29 @@ Be reasonable. Pass coherent political, policy, societal, and ideological questi
       }))
     );
 
-    systemPrompt = `You are helping "Community Question" - a UK platform that aggregates thousands of public questions to the Prime Minister.
+    systemPrompt = `You are helping "Community Question".
 
-Core Mission: Group questions that are asking the **same underlying thing**, even if worded differently.
+Task: Find which existing questions are asking the **same underlying thing** as the new one.
 
-A single good answer from the Prime Minister should satisfy all merged questions.
+Core rule: A single honest answer from the Prime Minister should reasonably address all merged questions.
 
-Be practical and reasonable:
-- Same core request / intent = merge
-- Different specific angle or demand = do not merge
-- Prioritise high-vote questions
+Be practical:
+- Same core request (even if worded differently) = merge
+- Different specific demands or angles = do not merge
 
 Return ONLY valid JSON:
 
 {
   "similar": [
-    {"id": number, "reason": "one short sentence explaining similarity"}
+    {"id": number, "reason": "one short sentence"}
   ],
   "isDistinct": boolean,
-  "canonicalSuggestion": "short clean main version of the question or null"
+  "canonicalSuggestion": "short clean main question or null"
 }`;
 
     userPrompt = `New question: "${text}"
 
-Existing top questions:
+Existing questions:
 ${questionList}`;
   }
 
@@ -98,32 +100,20 @@ ${questionList}`;
           { role: "user", content: userPrompt }
         ],
         temperature: 0.15,
-        max_tokens: maxTokens,
+        max_tokens: 1200,
         response_format: { type: "json_object" }
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Grok API error:", errorText);
-      return res.status(502).json({ error: "AI service error" });
-    }
+    if (!response.ok) throw new Error("API error");
 
     const data = await response.json();
-    const aiResponse = data.choices?.[0]?.message?.content;
-
-    let parsed;
-    try {
-      parsed = JSON.parse(aiResponse);
-    } catch (e) {
-      console.error("JSON parse error");
-      return res.status(502).json({ error: "Invalid AI response" });
-    }
+    const parsed = JSON.parse(data.choices[0].message.content);
 
     return res.status(200).json(parsed);
 
   } catch (error) {
-    console.error("AI handler error:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    console.error("AI error:", error);
+    return res.status(502).json({ error: "AI service error" });
   }
 }

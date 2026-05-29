@@ -324,6 +324,7 @@ export default function App() {
   setQualityError("");
 
   try {
+    // Step 1: Classify the question
     const classify = await classifyQuestion(submitText);
 
     if (classify.quality === "fail") {
@@ -334,12 +335,12 @@ export default function App() {
 
     if (classify.tag) setSubmitTag(classify.tag);
 
-    // === SIMPLIFIED: Send top voted questions to Grok ===
+    // Step 2: Semantic similarity check with Grok
     const topQuestions = [...questions]
       .sort((a, b) => (b.votes || 0) - (a.votes || 0))
       .slice(0, 10);
 
-    console.log(`Sending top ${topQuestions.length} questions to Grok for similarity check`);
+    console.log(`Sending top ${topQuestions.length} questions to Grok`);
 
     const similar = await checkSimilar(submitText, topQuestions);
     setAiResult(similar);
