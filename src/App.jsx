@@ -619,7 +619,7 @@ export default function App() {
                   </p>
                 </div>
 
-                {submitted ? (
+                submitted ? (
                   <div style={S.successBox}>
                     <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 32, color: G, marginBottom: 12 }}>✓</div>
                     <p style={{ fontFamily: "'Space Mono', monospace", fontSize: 14, color: G, marginBottom: 8 }}>Question submitted.</p>
