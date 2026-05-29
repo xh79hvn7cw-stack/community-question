@@ -332,21 +332,24 @@ export default function App() {
 
     if (classify.tag) setSubmitTag(classify.tag);
 
-    // === STRONGER FILTERING ===
-    const sText = submitText.toLowerCase();
-    const keyWords = sText.split(' ').filter(word => word.length > 4);
+    // === IMPROVED FILTERING ===
+    const sText = submitText.toLowerCase().trim();
+    const keyWords = sText.split(/\s+/).filter(word => word.length > 2); // Lowered threshold
 
     const filteredQuestions = questions
       .filter(q => {
         const qText = (q.text || "").toLowerCase();
         
-        // Must share at least 2 significant keywords
+        if (keyWords.length === 0) return false;
+
+        // Must share at least 1-2 significant keywords
         const matches = keyWords.filter(word => qText.includes(word));
         
-        return matches.length >= 2;
+        return matches.length >= 1 && 
+               (matches.length >= 2 || keyWords.length <= 2); // Allow single strong keyword for short inputs
       })
       .sort((a, b) => (b.votes || 0) - (a.votes || 0))
-      .slice(0, 8);   // Even stricter limit
+      .slice(0, 8);
 
     const similar = await checkSimilar(submitText, filteredQuestions);
     setAiResult(similar);
