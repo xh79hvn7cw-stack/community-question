@@ -634,50 +634,30 @@ export default function App() {
                 ) : (
                   <div style={S.submitCard}>
                     <label style={S.label}>Your question for Keir Starmer</label>
-                    <div ref={wrapRef} style={{ position: "relative", marginBottom: 16 }}>
-                      <textarea
-                        style={S.textarea}
-                        placeholder='e.g. "Will you scrap the two-child benefit cap — yes or no?"'
-                        value={submitText}
-                        onChange={onTextChange}
-                        onKeyDown={(e) => {
-                          if (!showDrop || matches.length === 0) return;
-                          if (e.key === "ArrowDown") { e.preventDefault(); setDropHover((h) => Math.min(h + 1, matches.length)); }
-                          if (e.key === "ArrowUp")   { e.preventDefault(); setDropHover((h) => Math.max(h - 1, 0)); }
-                          if (e.key === "Escape") setShowDrop(false);
-                        }}
-                      />
-                      {showDrop && matches.length > 0 && (
-                        <div style={S.dropdown}>
-                          {matches.map((m, i) => (
-                            <div key={m.id} style={S.dropItem(dropHover === i)}
-                              onMouseEnter={() => setDropHover(i)}
-                              onMouseLeave={() => setDropHover(-1)}
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); joinFromDrop(m.id); }}
-                            >
-                              <span style={S.dropText}>{m.text}</span>
-                              <span style={S.dropVotes}>{fmt(m.votes)}</span>
-                            </div>
-                          ))}
-                          <div style={S.dropNone}
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowDrop(false); setAutoChecked(true); runAiCheck(); }}
-                          >
-                            // None of these match — check my question →
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    
+                    <textarea
+                      style={S.textarea}
+                      placeholder='e.g. "Will you scrap the two-child benefit cap — yes or no?"'
+                      value={submitText}
+                      onChange={onTextChange}
+                      rows={4}
+                    />
 
-         {/* TEMP DISABLED TO FIX BLANK SCREEN */}
-{/*
-<button 
-  style={S.primaryBtn}
-  onClick={runAiCheck}
-  disabled={submitText.trim().length < 20 || aiLoading}
->
-  {aiLoading ? "🔍 Checking..." : "CHECK FOR SIMILAR QUESTIONS →"}
-</button>
-*/}
+                    {/* Clean V1 Button - Only triggers on click, no auto dropdown */}
+                    <button 
+                      style={S.primaryBtn}
+                      onClick={runAiCheck}
+                      disabled={submitText.trim().length < 20 || aiLoading}
+                    >
+                      {aiLoading ? "🔍 Checking for similar questions..." : "✅ CHECK FOR SIMILAR QUESTIONS →"}
+                    </button>
+
+                    {qualityError && (
+                      <div style={{ color: "#ff6b6b", marginTop: 12, fontWeight: 500 }}>
+                        {qualityError}
+                      </div>
+                    )}
+                  </div>
                   
                     {aiLoading && (
                       <div style={S.loadingBox}>
