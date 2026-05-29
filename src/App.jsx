@@ -609,58 +609,52 @@ export default function App() {
             )}
 
             {/* ── SUBMIT ── */}
-            {view === "submit" && (
-              <div style={S.page}>
-                <button style={S.backBtn} onClick={() => { goHome(); setAiResult(null); setSubmitText(""); setQualityError(""); setAutoChecked(false); }}>← Back</button>
-                <div style={{ borderLeft: `3px solid ${R}`, paddingLeft: 20, marginBottom: 28 }}>
-                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: R, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>// Ask the Prime Minister a question</div>
-                  <p style={{ fontSize: 13, color: "#555", lineHeight: 1.7, maxWidth: 520 }}>
-                    Type your question below. If thousands of others are already asking the same thing, we'll find them and combine all your voices into one. A single, powerful question — with a number behind it that's impossible to ignore.
-                  </p>
-                </div>
-
-              {submitted ? (
-  <div style={S.successBox}>
-    <div style={{ fontFamily: "'Space Mono'", fontSize: 32, color: "G", marginBottom: 12 }}>✅</div>
-    <p style={{ fontFamily: "'Space Mono'", fontSize: 14, color: "G", marginBottom: 8 }}>Question submitted.</p>
-    <p style={{ fontSize: 13, color: "#a3a3a3", marginBottom: 28 }}>Your voice has been added. Share it to build momentum.</p>
-    
-    <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-      <button style={S.primaryBtn(false)} onClick={() => { setSubmitted(false); goHome(); }}>← Back to questions</button>
-      <button style={{ ...S.secondaryBtn }} onClick={handleShareSubmitted}>
-        {shareSuccess ? "✅ Link copied!" : "↗ Share this question"}
-      </button>
-    </div>
-  </div>
-) : (
-  /* === CLEAN V1 ASK FORM === */
-  <div style={S.submitCard}>
-    <label style={S.label}>Your question for Keir Starmer</label>
-    
-    <textarea
-      style={S.textarea}
-      placeholder='e.g. "Will you scrap the two-child benefit cap — yes or no?"'
-      value={submitText}
-      onChange={onTextChange}
-      rows={4}
-    />
-
-    <button 
-      style={S.primaryBtn}
-      onClick={runAiCheck}
-      disabled={submitText.trim().length < 20 || aiLoading}
-    >
-      {aiLoading ? "🔍 Checking for similar questions..." : "✅ CHECK FOR SIMILAR QUESTIONS →"}
+  {view === "submit" && (
+  <div style={S.page}>
+    <button style={S.backBtn} onClick={() => { goHome(); setSubmitted(false); setSubmitText(""); setAiResult(null); setQualityError(""); }}>
+      ← Back
     </button>
 
-    {qualityError && <div style={{color: "#ff6b6b", marginTop: "12px"}}>{qualityError}</div>}
+    <div style={{ borderLeft: `3px solid red`, paddingLeft: 20, marginBottom: 28 }}>
+      <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "red", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 12 }}>
+        // ASK THE PRIME MINISTER A QUESTION
+      </div>
+      <p style={{ fontSize: 13, color: "#aaa", lineHeight: 1.7 }}>
+        Type your question below. If thousands of others are already asking the same thing, we'll find them and combine all your voices into one.
+      </p>
+    </div>
 
-    {aiResult && (
-      <div style={{marginTop: "16px", padding: "12px", background: "#1f1f1f", borderRadius: "8px"}}>
-        <pre style={{whiteSpace: "pre-wrap", fontSize: "13px"}}>{JSON.stringify(aiResult, null, 2)}</pre>
-        <button onClick={() => submitNew(submitText)} style={{marginTop: "10px", padding: "12px", background: "#ff4d4d", color: "white", border: "none", borderRadius: "6px", width: "100%"}}>
-          ➕ POST AS NEW QUESTION
+    {submitted ? (
+      <div style={S.successBox}>
+        <p>✅ Question submitted!</p>
+        <button onClick={() => { setSubmitted(false); goHome(); }}>Back to questions</button>
+      </div>
+    ) : (
+      <div style={S.submitCard}>
+        <label style={S.label}>Your question for Keir Starmer</label>
+
+        <textarea
+          style={S.textarea}
+          placeholder='e.g. "Will you scrap the two-child benefit cap — yes or no?"'
+          value={submitText}
+          onChange={onTextChange}
+          rows={4}
+        />
+
+        <button 
+          style={S.primaryBtn}
+          onClick={runAiCheck}
+          disabled={submitText.trim().length < 20 || aiLoading}
+        >
+          {aiLoading ? "🔍 Checking..." : "✅ CHECK FOR SIMILAR QUESTIONS →"}
         </button>
+
+        {qualityError && <div style={{color: "#ff6b6b"}}>{qualityError}</div>}
+
+        {aiResult && <div style={{marginTop: 16, padding: 12, background: "#222"}}>
+          <pre>{JSON.stringify(aiResult, null, 2)}</pre>
+          <button onClick={() => submitNew(submitText)}>POST AS NEW QUESTION</button>
+        </div>}
       </div>
     )}
   </div>
