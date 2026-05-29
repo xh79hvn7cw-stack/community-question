@@ -668,16 +668,15 @@ export default function App() {
                       )}
                     </div>
 
-                    {!autoChecked && (
-                      <button 
-  style={{ ... }}
+         {/* Check for similar questions button */}
+<button 
+  style={S.primaryBtn}
   onClick={runAiCheck}
   disabled={submitText.trim().length < 20 || aiLoading}
 >
-  {aiLoading ? "🔍 Checking..." : "CHECK FOR SIMILAR QUESTIONS →"}
+  {aiLoading ? "🔍 Checking for similar questions..." : "CHECK FOR SIMILAR QUESTIONS →"}
 </button>
-                    )}
-
+                  
                     {aiLoading && (
                       <div style={S.loadingBox}>
                         <span style={S.spinner} />
