@@ -619,100 +619,52 @@ export default function App() {
                   </p>
                 </div>
 
-                submitted ? (
-                  <div style={S.successBox}>
-                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 32, color: G, marginBottom: 12 }}>✓</div>
-                    <p style={{ fontFamily: "'Space Mono', monospace", fontSize: 14, color: G, marginBottom: 8 }}>Question submitted.</p>
-                    <p style={{ fontSize: 13, color: "#555", marginBottom: 28 }}>Your voice has been added. Share it to build momentum.</p>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-                      <button style={S.primaryBtn(false)} onClick={() => { setSubmitted(false); goHome(); }}>Back to questions</button>
-                      <button style={{ ...S.secondaryBtn }} onClick={handleShareSubmitted}>
-                        {shareSuccess ? "✓ Link copied!" : "↗ Share this question"}
-                      </button>
-                    </div>
-                  </div>
-                ) : 
-                  <div style={S.submitCard}>
-                    <label style={S.label}>Your question for Keir Starmer</label>
-                    
-                    <textarea
-                      style={S.textarea}
-                      placeholder='e.g. "Will you scrap the two-child benefit cap — yes or no?"'
-                      value={submitText}
-                      onChange={onTextChange}
-                      rows={4}
-                    />
+              {submitted ? (
+  <div style={S.successBox}>
+    <div style={{ fontFamily: "'Space Mono'", fontSize: 32, color: "G", marginBottom: 12 }}>✅</div>
+    <p style={{ fontFamily: "'Space Mono'", fontSize: 14, color: "G", marginBottom: 8 }}>Question submitted.</p>
+    <p style={{ fontSize: 13, color: "#a3a3a3", marginBottom: 28 }}>Your voice has been added. Share it to build momentum.</p>
+    
+    <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+      <button style={S.primaryBtn(false)} onClick={() => { setSubmitted(false); goHome(); }}>← Back to questions</button>
+      <button style={{ ...S.secondaryBtn }} onClick={handleShareSubmitted}>
+        {shareSuccess ? "✅ Link copied!" : "↗ Share this question"}
+      </button>
+    </div>
+  </div>
+) : (
+  /* === CLEAN V1 ASK FORM === */
+  <div style={S.submitCard}>
+    <label style={S.label}>Your question for Keir Starmer</label>
+    
+    <textarea
+      style={S.textarea}
+      placeholder='e.g. "Will you scrap the two-child benefit cap — yes or no?"'
+      value={submitText}
+      onChange={onTextChange}
+      rows={4}
+    />
 
-                    {/* Clean V1 Button - Only triggers on click, no auto dropdown */}
-                    <button 
-                      style={S.primaryBtn}
-                      onClick={runAiCheck}
-                      disabled={submitText.trim().length < 20 || aiLoading}
-                    >
-                      {aiLoading ? "🔍 Checking for similar questions..." : "✅ CHECK FOR SIMILAR QUESTIONS →"}
-                    </button>
+    <button 
+      style={S.primaryBtn}
+      onClick={runAiCheck}
+      disabled={submitText.trim().length < 20 || aiLoading}
+    >
+      {aiLoading ? "🔍 Checking for similar questions..." : "✅ CHECK FOR SIMILAR QUESTIONS →"}
+    </button>
 
-                    {qualityError && (
-                      <div style={{ color: "#ff6b6b", marginTop: 12, fontWeight: 500 }}>
-                        {qualityError}
-                      </div>
-                    )}
-                  </div>
-                  
-                    {aiLoading && (
-                      <div style={S.loadingBox}>
-                        <span style={S.spinner} />
-                        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#555" }}>// Checking your question…</span>
-                      </div>
-                    )}
+    {qualityError && <div style={{color: "#ff6b6b", marginTop: "12px"}}>{qualityError}</div>}
 
-                    {qualityError && (
-                      <div style={S.errorBox}>
-                        <p style={S.errorTitle}>// Question not accepted</p>
-                        <p style={S.errorText}>{qualityError} Please rephrase and try again.</p>
-                      </div>
-                    )}
-
-                    {aiResult && (
-                      <div style={S.aiBox}>
-                        <p style={S.aiTitle}>{aiResult.similar?.length > 0 ? `${aiResult.similar.length} similar question${aiResult.similar.length > 1 ? "s" : ""} already exist` : "No duplicates found — your question looks distinct"}</p>
-                        {aiResult.similar?.map(({ id, reason }) => {
-                          const m = questions.find((q) => q.id === id);
-                          if (!m) return null;
-                          return (
-                            <div key={id} style={S.aiItem}
-                              onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,59,59,0.05)"}
-                              onMouseLeave={(e) => e.currentTarget.style.background = "#0A0A0A"}
-                            >
-                              <p style={S.aiItemQ}>{m.text}</p>
-                              <p style={S.aiItemR}>{reason}</p>
-                              <div style={S.aiItemFt}>
-                                <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#444" }}>{m.votes.toLocaleString()} voices</span>
-                                <button style={S.joinBtn} onClick={() => { handleVote(id, null); setSubmitted(true); setSubmittedQId(id); }}>+ Add my voice →</button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {aiResult.isDistinct && (
-                          <div style={{ marginTop: aiResult.similar?.length ? 16 : 0, paddingTop: aiResult.similar?.length ? 16 : 0, borderTop: aiResult.similar?.length ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
-                            {aiResult.canonicalSuggestion && (
-                              <div style={{ marginBottom: 12 }}>
-                                <p style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#555", marginBottom: 8 }}>// Suggested wording:</p>
-                                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#0A0A0A", padding: "10px 12px", border: "1px solid rgba(255,255,255,0.05)" }}>
-                                  <p style={{ fontSize: 13, color: "#888", fontStyle: "italic", flex: 1, lineHeight: 1.5 }}>"{aiResult.canonicalSuggestion}"</p>
-                                  <button style={S.useWordingBtn} onClick={() => setSubmitText(aiResult.canonicalSuggestion)}>Use this ↑</button>
-                                </div>
-                              </div>
-                            )}
-                            <button style={{ ...S.primaryBtn(false), width: "100%" }} onClick={() => submitNew(submitText)}>Submit as new question</button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+    {aiResult && (
+      <div style={{marginTop: "16px", padding: "12px", background: "#1f1f1f", borderRadius: "8px"}}>
+        <pre style={{whiteSpace: "pre-wrap", fontSize: "13px"}}>{JSON.stringify(aiResult, null, 2)}</pre>
+        <button onClick={() => submitNew(submitText)} style={{marginTop: "10px", padding: "12px", background: "#ff4d4d", color: "white", border: "none", borderRadius: "6px", width: "100%"}}>
+          ➕ POST AS NEW QUESTION
+        </button>
+      </div>
+    )}
+  </div>
+)}
             {/* ── PRIVACY POLICY ─────────────────────────────────────── */}
             {view === "privacy" && (
               <div style={S.page}>
